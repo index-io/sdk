@@ -1,0 +1,22 @@
+{
+  "name": "index-sdk",
+  "version": "1.0.0",
+  "description": "API Documentation and SDK",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/index-io/sdk.git"
+  },
+  "author": "Index Solutions Inc",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/index-io/sdk/issues"
+  },
+  "homepage": "https://github.com/index-io/sdk#readme",
+  "dependencies": {
+    "dotenv": "^17.2.0"
+  }
+}

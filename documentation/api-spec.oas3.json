@@ -1,0 +1,3454 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "x-audience": "external-partner",
+    "title": "Index Solutions API",
+    "description": "# API for Index Solutions Services\n\nAll API endpoints require authorization with a Bearer token in the Authorization header. The token can be retrieved from the OAuth 2.0 token endpoint. More information regarding this endpoint can be found in the [AWS Cognito documentation](https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html).\n\n## Contact Monitoring\nFor Contact Monitoring we attempt to find a public profile for the contact and monitor that profile for changes over time. We then notify those who are subscribed to updates about relevant changes to the contact or the underlying public profile.\n\nThe input to a Contact Monitoring Request is a contact (with required name and some additional information such as job title/company or email) as well as configuration options.\n\n## Entity Resolution\nDuring an Entity Resolution we attempt to find the most likely ID in the requested database (i.e. either the DUNS number or S&P ID). Depending on the configuration option the result also includes fields like legal name, primary address, Global Ultimate Parent, NAICS Codes, and SALI Codes.\n\nThe input to an Entity Resolution Request is a company name and a location (optional but highly recommended for best results) as well as configuration options to control the type of data to be returned.\n\n## Matter Classification\nThe Matter Classification API allows you to classify a matter into one or more areas of law or services.\n\n## Webhooks\nWebhooks allow you to receive timely notifications about updates to monitored contacts, entities, or profiles. You can configure webhooks to listen for specific types of events and receive updates when changes occur.\n\nTo use webhooks:\n1. Create a webhook endpoint on your server to receive POST requests from our system.\n2. Register your webhook URL using the create webhook API endpoint.\n3. Configure the types of events you want to receive (profile updates, contact updates, entity updates).\n4. Our system will send POST requests to your webhook URL whenever relevant events occur.\n\nWebhook payloads include details about the event type and the updated data, allowing you to keep your systems in sync with the latest information from Index Solutions.\nWebhook calls include a signature header that can be used to verify the authenticity of the payload.\n\n### Event Types\n\n**contact-updated:** We have discovered an update to the underlying contact resource that should be integrated to your system.\n\n**contact-profile-updated:** We have discoeverd an update the the profile that is associated with the contact resource. In case you do track those separately, your system should be updated.\n\n**organization-updated:** We have discovered an update to the underlying organization resource that should be integrated to your system.\n\n**matter-updated:** We have classified a matter into one or more areas of law or services.\n",
+    "version": "1.4.0",
+    "termsOfService": "https://index.io/terms",
+    "contact": {
+      "name": "Index Solutions Support",
+      "email": "support@index.io",
+      "url": "https://index.io"
+    },
+    "license": {
+      "name": "MIT License",
+      "identifier": "MIT"
+    }
+  },
+  "tags": [
+    {
+      "name": "Contact",
+      "description": "Contact related requests"
+    },
+    {
+      "name": "Webhook",
+      "description": "Webhook related requests"
+    },
+    {
+      "name": "Organization",
+      "description": "Organization related requests"
+    },
+    {
+      "name": "Matter",
+      "description": "Matter related requests"
+    }
+  ],
+  "paths": {
+    "/contacts": {
+      "post": {
+        "operationId": "createContact",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Contact"
+        ],
+        "summary": "Create Contact",
+        "description": "Create Contact with Optional Monitoring and Cleaning Configuration. The contact creation is immediate, but if monitoring or cleaning configurations are provided, those processes may be asynchronous and involve a human Data Steward. The response includes the created contact details and, if applicable, the configuration the for monitoring or cleaning processes.\n",
+        "requestBody": {
+          "description": "A JSON object containing a contact payload",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "description": "Contact information for an individual",
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "Unique identifier for the contact"
+                      },
+                      "uri": {
+                        "type": "string",
+                        "description": "A URI we use internally for referencing the contact",
+                        "readOnly": true
+                      },
+                      "firstName": {
+                        "type": "string",
+                        "description": "The contact's first name"
+                      },
+                      "lastName": {
+                        "type": "string",
+                        "description": "The contact's last name"
+                      },
+                      "middleName": {
+                        "type": "string",
+                        "description": "The contact's middle name, if any"
+                      },
+                      "jobTitle": {
+                        "type": "string",
+                        "description": "The contact's current job title"
+                      },
+                      "organization": {
+                        "description": "The organization the contact is associated with",
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "readOnly": true,
+                            "description": "Unique identifier for the organization"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "The name of the organization"
+                          }
+                        }
+                      },
+                      "workStatus": {
+                        "description": "The current employment status of the contact",
+                        "type": "string",
+                        "enum": [
+                          "employed",
+                          "self-employed",
+                          "between-jobs",
+                          "in-school",
+                          "retired",
+                          "deceased"
+                        ]
+                      },
+                      "emails": {
+                        "type": "array",
+                        "description": "List of email addresses associated with the contact",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "object",
+                          "description": "Represents an email address with its associated type",
+                          "required": [
+                            "type",
+                            "value"
+                          ],
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "description": "The category or purpose of the email address",
+                              "enum": [
+                                "work",
+                                "personal",
+                                "other",
+                                "obsolete"
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "format": "email",
+                              "description": "The actual email address"
+                            }
+                          }
+                        }
+                      },
+                      "urls": {
+                        "type": "array",
+                        "description": "List of relevant URLs associated with the contact (e.g., LinkedIn profile)",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "type",
+                            "value"
+                          ],
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "default": "other",
+                              "enum": [
+                                "linkedin",
+                                "professional",
+                                "other"
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "format": "uri",
+                              "sanitize": "url"
+                            },
+                            "source": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "enum": [
+                                    "google",
+                                    "googleai",
+                                    "contact",
+                                    "gd",
+                                    "mturk",
+                                    "ds"
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "address": {
+                        "description": "The contact's physical address",
+                        "type": "object",
+                        "properties": {
+                          "addressLines": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "examples": [
+                                "1 Main St"
+                              ]
+                            }
+                          },
+                          "addressLevel1": {
+                            "type": "string",
+                            "description": "State/Region/Province",
+                            "examples": [
+                              "CA"
+                            ]
+                          },
+                          "city": {
+                            "type": "string",
+                            "description": "City Name",
+                            "examples": [
+                              "Mountain View"
+                            ]
+                          },
+                          "postalCode": {
+                            "type": "string",
+                            "description": "Postal/Zip Code",
+                            "examples": [
+                              "94040"
+                            ]
+                          },
+                          "country": {
+                            "type": "string",
+                            "examples": [
+                              "USA"
+                            ]
+                          },
+                          "countryCode": {
+                            "type": "string",
+                            "description": "Alpha-2 Country Code",
+                            "examples": [
+                              "US",
+                              "DE",
+                              "KZ"
+                            ]
+                          }
+                        }
+                      },
+                      "status": {
+                        "type": "string",
+                        "readOnly": true,
+                        "description": "The current status of the contact in the system",
+                        "enum": [
+                          "created",
+                          "processing",
+                          "monitoring",
+                          "cleaned",
+                          "failed",
+                          "inactive"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "config": {
+                        "description": "Contact Product Configuration",
+                        "oneOf": [
+                          {
+                            "title": "Clean Contact Product Configuration",
+                            "type": "object",
+                            "required": [
+                              "action"
+                            ],
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "const": "clean"
+                              },
+                              "frequency": {
+                                "type": "string",
+                                "description": "The frequency at which we check the public profiles for updates or 'none' for a one-time clean.",
+                                "enum": [
+                                  "quarterly",
+                                  "monthly",
+                                  "none"
+                                ],
+                                "default": "none"
+                              }
+                            }
+                          },
+                          {
+                            "title": "Save Contact Product Configuration",
+                            "type": "object",
+                            "required": [
+                              "action"
+                            ],
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "const": "save"
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "action",
+                          "mapping": {
+                            "clean": "#/components/schemas/CleanContactProductConfiguration",
+                            "save": "#/components/schemas/SaveContactProductConfiguration"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contact updated successfully in case it already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/paths/~1contacts/post/requestBody/content/application~1json/schema"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Contact created successfully",
+            "$ref": "#/paths/~1contacts/post/responses/200"
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/contacts/{contactId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/contactId"
+        }
+      ],
+      "get": {
+        "operationId": "getContact",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Contact"
+        ],
+        "summary": "Get Contact Information for a given ID",
+        "description": "This API endpoint fetches the Contact, Public Profile, and Configuration Information for a given Contact ID.\n",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/paths/~1contacts/post/requestBody/content/application~1json/schema"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      },
+      "put": {
+        "operationId": "updateContact",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Contact"
+        ],
+        "summary": "Update Contact Information for a given ID",
+        "description": "This API endpoint updates the Contact Information for a given Contact ID.\n",
+        "requestBody": {
+          "description": "A JSON object containing a contact payload",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/paths/~1contacts/post/requestBody/content/application~1json/schema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/paths/~1contacts~1%7BcontactId%7D/get/responses/200"
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      },
+      "delete": {
+        "operationId": "deleteContact",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Contact"
+        ],
+        "summary": "Delete Contact for a given ID",
+        "description": "This API endpoint deletes the Contact for a given Contact ID.\n",
+        "responses": {
+          "204": {
+            "description": "Deleted",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "404": {
+            "$ref": "#/paths/~1webhooks~1%7BwebhookId%7D/get/responses/404"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/organizations": {
+      "post": {
+        "operationId": "createOrganization",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/organization.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Organization"
+        ],
+        "summary": "Create Organization",
+        "description": "Create Organization with Optional Monitoring Configuration. The organization creation is immediate, but if monitoring configurations are provided, those processes may be asynchronous and involve a human Data Steward. The response includes the created organization details and, if applicable, the configuration the for monitoring or cleaning processes.\n",
+        "requestBody": {
+          "description": "Request body for creating an organization",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "description": "External representation of an organization",
+                    "required": [
+                      "id",
+                      "uri",
+                      "name"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Unique identifier for the organization"
+                      },
+                      "uri": {
+                        "type": "string",
+                        "description": "A URI we use internally for referencing the organization",
+                        "readOnly": true
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "The primary name of the organization"
+                      },
+                      "alternateNames": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "description": "Alternative names or aliases for the organization",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "urls": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "description": "URLs associated with the organization",
+                        "items": {
+                          "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/sp/properties/urls/items"
+                        }
+                      },
+                      "locations": {
+                        "type": "array",
+                        "description": "An array of the organization's locations",
+                        "items": {
+                          "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/sp/properties/locations/items"
+                        }
+                      },
+                      "profiles": {
+                        "readOnly": true,
+                        "type": "array",
+                        "description": "An array of references to profiles related to the Organization (e.g. an S&P Profile)",
+                        "items": {
+                          "type": "object",
+                          "description": "An ExternalProfileReference is a reference to an ExternalProfile (e.g. a S&P Profile)",
+                          "required": [
+                            "id",
+                            "dataSource",
+                            "type"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "The ID of the entity, e.g. a DUNS number"
+                            },
+                            "data": {
+                              "type": "object",
+                              "description": "Supplementary data of the reference.  For example, the relationship to the parent company."
+                            },
+                            "dataSource": {
+                              "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles~1%7BdataSource%7D/parameters/1/schema"
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "The type of the reference",
+                              "default": "self",
+                              "enum": [
+                                "self",
+                                "global-parent",
+                                "domestic-parent",
+                                "parent",
+                                "headquarters"
+                              ]
+                            },
+                            "updatedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "The last time the reference was updated"
+                            }
+                          }
+                        }
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "The current status of the contact in the system",
+                        "readOnly": true,
+                        "enum": [
+                          "created",
+                          "processing",
+                          "monitoring",
+                          "cleaned",
+                          "failed",
+                          "inactive"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "config": {
+                        "description": "Organization Product Configuration",
+                        "oneOf": [
+                          {
+                            "title": "Resolve Organization Configuration",
+                            "type": "object",
+                            "required": [
+                              "action",
+                              "dataSource"
+                            ],
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "const": "resolve"
+                              },
+                              "frequency": {
+                                "type": "string",
+                                "description": "The frequency at which we check the external profiles for updates or 'none' for a one-time resolution.",
+                                "enum": [
+                                  "quarterly",
+                                  "monthly",
+                                  "none"
+                                ],
+                                "default": "none"
+                              },
+                              "dataSource": {
+                                "description": "The data source to use for the entity resolution. Note that dnb is only available after an initial setup process.",
+                                "type": "string",
+                                "enum": [
+                                  "dnb",
+                                  "sp"
+                                ]
+                              },
+                              "includeVendorData": {
+                                "type": "boolean",
+                                "description": "If true, the data will include the vendor data from the specified data source in the results (e.g. legal name, address, employee and revenue numbers, etc.).",
+                                "default": true
+                              },
+                              "includeWebData": {
+                                "type": "boolean",
+                                "description": "If true, the data will include web data in the results (e.g. url, website title/description, a summary of the company activity based on information found on the web)",
+                                "default": false
+                              },
+                              "includeGlobalUltimate": {
+                                "type": "boolean",
+                                "description": "If true, the data will include the global ultimate parent company in the results (if available).",
+                                "default": false
+                              },
+                              "includeNAICS": {
+                                "type": "boolean",
+                                "description": "If true, the data will include NAICS codes for the company (if available).",
+                                "default": false
+                              },
+                              "includeSALI": {
+                                "type": "boolean",
+                                "description": "If true, the data will include SALI codes for the company (if available).",
+                                "default": false
+                              },
+                              "searchAliases": {
+                                "type": "boolean",
+                                "description": "If true, the search will include the additionalNames/aliases for the company name. This can lead to a higher match rate but also a higher false positive rate.",
+                                "default": false
+                              },
+                              "customTaxonomyId": {
+                                "type": "string",
+                                "description": "The ID of a custom taxonomy that has been setup previously via support. If set a label based on this custom taxonomy will be created."
+                              }
+                            }
+                          },
+                          {
+                            "title": "Save Organization Configuration",
+                            "type": "object",
+                            "required": [
+                              "action"
+                            ],
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "const": "save"
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "action",
+                          "mapping": {
+                            "resolve": "#/components/schemas/ResolveOrganizationProductConfiguration",
+                            "save": "#/components/schemas/SaveOrganizationProductConfiguration"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Organization updated successfully in case it already existed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/paths/~1organizations/post/requestBody/content/application~1json/schema"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Organization created successfully",
+            "$ref": "#/paths/~1organizations/post/responses/200"
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/organizations/{organizationId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/organizationId"
+        }
+      ],
+      "get": {
+        "operationId": "getOrganization",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/organization.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Organization"
+        ],
+        "summary": "Get Organization Information for a given ID",
+        "description": "This API endpoint fetches the Organization and Configuration Information for a given Organization ID.\n",
+        "responses": {
+          "200": {
+            "description": "Successful organization response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/paths/~1organizations/post/requestBody/content/application~1json/schema"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      },
+      "put": {
+        "operationId": "updateOrganization",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/organization.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Organization"
+        ],
+        "summary": "Update Organization Information for a given ID",
+        "description": "This API endpoint updates the Organization Information for a given Organization ID.\n",
+        "requestBody": {
+          "description": "A JSON object containing a contact payload",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/paths/~1organizations/post/requestBody/content/application~1json/schema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/paths/~1organizations~1%7BorganizationId%7D/get/responses/200"
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      },
+      "delete": {
+        "operationId": "deleteOrganization",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/organization.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Organization"
+        ],
+        "summary": "Delete Organization for a given ID",
+        "description": "This API endpoint deletes the Organization for a given Organization ID.\n",
+        "responses": {
+          "204": {
+            "$ref": "#/paths/~1contacts~1%7BcontactId%7D/delete/responses/204"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "404": {
+            "$ref": "#/paths/~1webhooks~1%7BwebhookId%7D/get/responses/404"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/organizations/{organizationId}/profiles": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/organizationId"
+        }
+      ],
+      "get": {
+        "operationId": "listOrganizationProfiles",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/organization.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Organization"
+        ],
+        "summary": "Get Organization Profiles for the Organization with a given ID",
+        "description": "This API endpoint fetches the Profiles for a given Organization ID.\n",
+        "responses": {
+          "200": {
+            "description": "Successful profiles response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dnb": {
+                      "description": "The DNB data for the organization",
+                      "type": "object",
+                      "required": [
+                        "id"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "The DUNS number"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "alternateNames": {
+                          "type": "array",
+                          "uniqueItems": true,
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "locations": {
+                          "type": "array",
+                          "uniqueItems": true,
+                          "items": {
+                            "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/sp/properties/locations/items"
+                          }
+                        },
+                        "urls": {
+                          "type": "array",
+                          "description": "The URLs associated with the organization",
+                          "uniqueItems": true,
+                          "items": {
+                            "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/sp/properties/urls/items"
+                          }
+                        },
+                        "employees": {
+                          "type": "number",
+                          "description": "The number of employees at the company",
+                          "examples": [
+                            136332
+                          ]
+                        },
+                        "revenue": {
+                          "type": "object",
+                          "description": "The revenue of the company in the specified currency",
+                          "properties": {
+                            "value": {
+                              "type": "number",
+                              "examples": [
+                                14263881
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "examples": [
+                                "USD"
+                              ]
+                            }
+                          }
+                        },
+                        "industry": {
+                          "type": "string",
+                          "description": "The primary industry of the company",
+                          "examples": [
+                            "Manufacturing"
+                          ]
+                        }
+                      }
+                    },
+                    "sp": {
+                      "description": "The SP data for the organization",
+                      "type": "object",
+                      "required": [
+                        "id"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "The SP ID"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "locations": {
+                          "type": "array",
+                          "uniqueItems": true,
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "address": {
+                                "$ref": "#/paths/~1contacts/post/responses/200/content/application~1json/schema/allOf/0/properties/address",
+                                "description": "The location's physical address"
+                              }
+                            }
+                          }
+                        },
+                        "urls": {
+                          "type": "array",
+                          "description": "The URLs associated with the organization",
+                          "uniqueItems": true,
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "type",
+                              "value"
+                            ],
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "primary",
+                                  "linkedin",
+                                  "other"
+                                ]
+                              },
+                              "value": {
+                                "type": "string",
+                                "format": "uri",
+                                "sanitize": "url"
+                              }
+                            }
+                          }
+                        },
+                        "companyStatusTypeName": {
+                          "type": "string",
+                          "maxLength": 50
+                        },
+                        "companyTypeId": {
+                          "type": "integer"
+                        },
+                        "companyTypeName": {
+                          "type": "string",
+                          "maxLength": 50
+                        },
+                        "officeFaxValue": {
+                          "type": "string",
+                          "maxLength": 50
+                        },
+                        "officePhoneValue": {
+                          "type": "string",
+                          "maxLength": 50
+                        },
+                        "otherPhoneValue": {
+                          "type": "string",
+                          "maxLength": 50
+                        },
+                        "simpleIndustryDescription": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "yearFounded": {
+                          "type": "string"
+                        },
+                        "monthFounded": {
+                          "type": "integer"
+                        },
+                        "dayFounded": {
+                          "type": "integer"
+                        },
+                        "incorporationCountry": {
+                          "type": "string"
+                        },
+                        "incorporationState": {
+                          "type": "string"
+                        },
+                        "additionalData": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "additionalNames": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "additionalIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "web": {
+                      "description": "The web data for the organization",
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "description": "The website URL"
+                        },
+                        "metadataDescription": {
+                          "type": "string",
+                          "description": "The website's metadata description"
+                        },
+                        "metadataTitle": {
+                          "type": "string",
+                          "description": "The website's metadata title"
+                        },
+                        "gptSummary": {
+                          "type": "string",
+                          "description": "The summary of the company activities by ChatGPT"
+                        }
+                      }
+                    },
+                    "naics": {
+                      "description": "The NAICS data for the organization",
+                      "type": "object",
+                      "required": [
+                        "values"
+                      ],
+                      "properties": {
+                        "values": {
+                          "type": "array",
+                          "uniqueItems": true,
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "name"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "The NAICS code",
+                                "examples": [
+                                  "522130"
+                                ]
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "The name of the NAICS code",
+                                "examples": [
+                                  "Credit Unions"
+                                ]
+                              },
+                              "explanation": {
+                                "type": "string",
+                                "description": "Explanation for the NAICS code"
+                              },
+                              "isPrimary": {
+                                "type": "boolean",
+                                "description": "Whether the NAICS code is the primary one"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "sali": {
+                      "description": "The SALI data for the organization",
+                      "type": "object",
+                      "required": [
+                        "values"
+                      ],
+                      "properties": {
+                        "values": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "name"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "The SALI code (IRI)",
+                                "examples": [
+                                  "http://lmss.sali.org/42JL-2LmRkyOB6I22vDukA"
+                                ]
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "The name of the SALI code",
+                                "examples": [
+                                  "Credit Unions"
+                                ]
+                              },
+                              "isPrimary": {
+                                "type": "boolean",
+                                "description": "Whether the SALI code is the primary one"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "customTaxonomy": {
+                      "description": "The custom taxonomy data for the organization",
+                      "type": "object",
+                      "required": [
+                        "taxonomyId",
+                        "values"
+                      ],
+                      "properties": {
+                        "taxonomyId": {
+                          "description": "The custom taxonomy id",
+                          "type": "string",
+                          "enum": [
+                            "IndustryCodes1",
+                            "IndustryCodes2"
+                          ]
+                        },
+                        "values": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "name"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "The custom taxonomy code",
+                                "examples": [
+                                  "ABC123"
+                                ]
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "The name of the custom taxonomy code",
+                                "examples": [
+                                  "Banking - Credit Unions"
+                                ]
+                              },
+                              "explanation": {
+                                "type": "string",
+                                "description": "Explanation why the custom taxonomy code was assigned"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "linkedin": {
+                      "description": "The LinkedIn data for the organization",
+                      "type": "object",
+                      "properties": {
+                        "tagline": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "specialties": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "phone": {
+                          "type": "string"
+                        },
+                        "employeeCountRange": {
+                          "type": "string",
+                          "description": "Estimated number of employees",
+                          "examples": [
+                            "11-50",
+                            "10001-25000"
+                          ]
+                        },
+                        "industries": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "foundedOn": {
+                          "type": "object",
+                          "properties": {
+                            "year": {
+                              "type": "integer"
+                            },
+                            "month": {
+                              "type": "integer"
+                            },
+                            "day": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        "ticker": {
+                          "type": "object",
+                          "properties": {
+                            "exchange": {
+                              "type": "string"
+                            },
+                            "symbol": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "properties": {
+                            "isActive": {
+                              "type": "boolean"
+                            },
+                            "entityUrn": {
+                              "type": "string"
+                            },
+                            "universalName": {
+                              "type": "string"
+                            },
+                            "isVerified": {
+                              "type": "boolean"
+                            },
+                            "autoGenerated": {
+                              "type": "boolean"
+                            },
+                            "employeeCount": {
+                              "type": "integer",
+                              "description": "Number of employees on LI"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/organizations/{organizationId}/profiles/{dataSource}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/organizationId"
+        },
+        {
+          "name": "dataSource",
+          "in": "path",
+          "description": "The data source to fetch the profile for",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "dnb",
+              "sp",
+              "web",
+              "naics",
+              "sali",
+              "customTaxonomy",
+              "linkedin",
+              "idx-related-profile"
+            ]
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getOrganizationProfileForDataSource",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/organization.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Organization"
+        ],
+        "summary": "Get Organization Profile Data for a given Data Source",
+        "description": "This API endpoint fetches the data of the profile for a given Organization ID and Data Source.\n",
+        "responses": {
+          "200": {
+            "description": "Successful profiles response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The data for a specific ExternalProfile and dataSource.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/dnb",
+                      "title": "D&B Data"
+                    },
+                    {
+                      "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/sp",
+                      "title": "S&P Data"
+                    },
+                    {
+                      "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/web",
+                      "title": "Web Data"
+                    },
+                    {
+                      "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/naics",
+                      "title": "NAICS Data"
+                    },
+                    {
+                      "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/sali",
+                      "title": "SALI Data"
+                    },
+                    {
+                      "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/customTaxonomy",
+                      "title": "Custom Taxonomy Data"
+                    },
+                    {
+                      "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/linkedin",
+                      "title": "LinkedIn Data"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/organizations/{organizationId}/{referenceType}/profiles": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/organizationId"
+        },
+        {
+          "name": "referenceType",
+          "in": "path",
+          "description": "The type of parent to fetch the profiles for.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "global-parent",
+              "domestic-parent",
+              "parent"
+            ]
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listParentOrganizationProfiles",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/organization.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Organization"
+        ],
+        "summary": "Get Organization Profiles for the Global or Domestic Parent of the Organization with a given ID",
+        "description": "This API endpoint fetches the Profiles for a given Organization ID.\n",
+        "responses": {
+          "200": {
+            "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200"
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/organizations/{organizationId}/{referenceType}/profiles/{dataSource}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/organizationId"
+        },
+        {
+          "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1%7BreferenceType%7D~1profiles/parameters/1"
+        },
+        {
+          "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles~1%7BdataSource%7D/parameters/1"
+        }
+      ],
+      "get": {
+        "operationId": "getParentOrganizationProfileForDataSource",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/organization.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Organization"
+        ],
+        "summary": "Get Organization Profile Data for a given Data Source and Parent ID",
+        "description": "This API endpoint fetches the data of the profile for a given Organization ID, Parent ID and Data Source.\n",
+        "responses": {
+          "200": {
+            "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles~1%7BdataSource%7D/get/responses/200"
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/matters": {
+      "post": {
+        "operationId": "createMatter",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/matter.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Matter"
+        ],
+        "summary": "Create a new matter",
+        "description": "Create a new matter with classification configuration. Matter Players are optional but recommended for better results.\n",
+        "requestBody": {
+          "description": "A JSON object containing a matter payload",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "description": "Legal Matter. Should include a title and description in most cases. typeDescription and department are not available in all systems but should be provided if available.\n",
+                    "required": [
+                      "id",
+                      "title"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "ID in external system"
+                      },
+                      "uri": {
+                        "type": "string",
+                        "description": "Internal URI of the matter",
+                        "examples": [
+                          "mt:00000000-0000-4000-A000-000000000000"
+                        ],
+                        "readOnly": true
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "Title/name of the matter",
+                        "examples": [
+                          "Audit Response Letters",
+                          "Project Delta",
+                          "General",
+                          "General Corporate Counseling"
+                        ]
+                      },
+                      "description": {
+                        "type": "string",
+                        "description": "Detailed description of the matter. This is the Narrative Description Text in the SALI Matter Record.",
+                        "examples": [
+                          "Litigation involving termination of purchase order and claim for damage",
+                          "Immigration",
+                          "General",
+                          "Litigation",
+                          "Assist client with Vendor Agreements with XYZ Client"
+                        ]
+                      },
+                      "department": {
+                        "type": "string",
+                        "description": "Department handling the matter",
+                        "examples": [
+                          "Corporate",
+                          "Healthcare",
+                          "Intellectual Property"
+                        ]
+                      },
+                      "matterType": {
+                        "type": "string",
+                        "description": "Matter type as defined in the Firm's Matter Type Taxonomy",
+                        "examples": [
+                          "CORP - General Corporate Counseling",
+                          "IP - General",
+                          "LIT - Contract Litigation",
+                          "International Trade//Trade Policy"
+                        ]
+                      },
+                      "players": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "name",
+                            "type"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "ID of player in external system"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "Name of the player",
+                              "examples": [
+                                "John Doe",
+                                "Doe & Associates",
+                                "XYZ Company"
+                              ]
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Type of the player",
+                              "enum": [
+                                "client",
+                                "attorney",
+                                "other"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "config": {
+                        "description": "Matter Product Configuration",
+                        "oneOf": [
+                          {
+                            "title": "Classify Matter Configuration",
+                            "type": "object",
+                            "required": [
+                              "action"
+                            ],
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "const": "classify"
+                              },
+                              "dataSource": {
+                                "type": "string",
+                                "description": "The data source to use for the matter classification.",
+                                "enum": [
+                                  "sali"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "title": "Save Matter Configuration",
+                            "type": "object",
+                            "required": [
+                              "action"
+                            ],
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "const": "save"
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "action",
+                          "mapping": {
+                            "classify": "#/components/schemas/ClassifyMatterProductConfiguration",
+                            "save": "#/components/schemas/SaveMatterProductConfiguration"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/paths/~1matters/post/requestBody/content/application~1json/schema"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/matters/{matterId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/matterId"
+        }
+      ],
+      "get": {
+        "operationId": "getMatter",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/matter.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Matter"
+        ],
+        "summary": "Get Matter Information for a given ID",
+        "description": "This API endpoint fetches the Matter and Classification Information for a given Matter ID.\n",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/paths/~1matters/post/requestBody/content/application~1json/schema/allOf/0"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "classifications": {
+                          "readOnly": true,
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "type",
+                                  "value",
+                                  "source"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "const": "service"
+                                  },
+                                  "value": {
+                                    "type": "string",
+                                    "description": "SALI Service Classes and Subclasses",
+                                    "enum": [
+                                      "Bankruptcy and Financial Restructuring Practice",
+                                      "Bankruptcy Claims Practice",
+                                      "Claims Filing Practice",
+                                      "Claims Objection Practice",
+                                      "Claims Review Practice",
+                                      "Reorganization Bankruptcy",
+                                      "US Chapter 13 Bankruptcy",
+                                      "US Chapter 11 Bankruptcy",
+                                      "US Chapter 11 Bankruptcy - Streamlined",
+                                      "US Chapter 11 - Small Business Debtors",
+                                      "US Chapter 12 Bankruptcy",
+                                      "Bankruptcy Budgeting Practice",
+                                      "Fee and Employment Practice",
+                                      "Fee Objection Practice",
+                                      "Fee Application Process",
+                                      "Employment Application Process",
+                                      "Employment Objection Process",
+                                      "Adversary Proceeding Practice",
+                                      "Trial Court Practice",
+                                      "Pretrial Practice",
+                                      "Discovery Practice",
+                                      "Document Collection and Production Practice",
+                                      "Identification of Documents Practice",
+                                      "Analysis of Documents Practice",
+                                      "Processing of Documents Practice",
+                                      "Presentation of Documents Practice",
+                                      "Preservation of Documents Practice",
+                                      "Collection of Documents Practice",
+                                      "Review of Documents Practice",
+                                      "Production of Documents Practice",
+                                      "Written Discovery Practice",
+                                      "Interrogatories Practice",
+                                      "Subpoena Practice",
+                                      "Subpoena Response Practice",
+                                      "Subpoena Assertion Practice",
+                                      "Requests for Admission Practice",
+                                      "Requests for Production Practice",
+                                      "Deposition Practice",
+                                      "Corporate Representative Deposition Practice",
+                                      "Expert Deposition Practice",
+                                      "Fact Deposition Practice",
+                                      "Deposition Posture",
+                                      "Observing Deposition",
+                                      "Defending Deposition",
+                                      "Taking Deposition",
+                                      "Discovery Motion Practice",
+                                      "Expert Practice",
+                                      "Physical Examination Practice",
+                                      "Expert Report Practice",
+                                      "Expert Interview Practice",
+                                      "Daubert Motion Practice",
+                                      "Pretrial Motion Practice",
+                                      "Dispositive Motion Practice",
+                                      "Injunctions, Restraining Orders, and Provisional Remedies Practice",
+                                      "Pleadings Practice",
+                                      "Post-Trial Practice",
+                                      "Post-Trial Submission Practice",
+                                      "Trial and Post-Trial Motion Practice",
+                                      "Trial Practice",
+                                      "Witness Examination Practice",
+                                      "Cross-Examination of Witness",
+                                      "Direct-Examination of Witness",
+                                      "Jury Selection / Voire Dire Practice",
+                                      "Trial Preparation Practice",
+                                      "Trial Testimony Practice",
+                                      "Asset Analysis",
+                                      "Asset Valuation Practice",
+                                      "Asset Due Diligence Practice",
+                                      "Examiner Investigation Practice",
+                                      "Asset Turnover Practice",
+                                      "Non-Litigation Recovery Practice",
+                                      "Financial Advisor Practice",
+                                      "Out-of-Court Restructuring",
+                                      "Receivership Creation",
+                                      "Assignment for the Benefit of Creditors",
+                                      "Individualized Restructuring",
+                                      "Liquidation Bankruptcy",
+                                      "US Chapter 7 Bankruptcy",
+                                      "Relief from Stay Practice",
+                                      "Automatic Stay Practice",
+                                      "Adequate Protection Practice",
+                                      "Bankruptcy Case Closure Practice",
+                                      "Insolvency Practice",
+                                      "US Chapter 15 Bankruptcy",
+                                      "Corporate Governance Analysis",
+                                      "Debt Repayment Plan Bankruptcy",
+                                      "Analysis of Entity Formation",
+                                      "Creditor Meeting and Communication Practice",
+                                      "Bankruptcy Exit Financing",
+                                      "Bankruptcy Initiation Type",
+                                      "Voluntary Bankruptcy",
+                                      "Involuntary Bankruptcy",
+                                      "Bankruptcy Motion Practice",
+                                      "US Chapter 9 Bankruptcy",
+                                      "Settlement, Demand, and Collection Practice",
+                                      "Demand Letter Practice",
+                                      "Debt Collection Practice",
+                                      "Domestication Action",
+                                      "Settlement Practice",
+                                      "Negotiation Sequence",
+                                      "Collective Bargaining Event",
+                                      "Obligation Analysis",
+                                      "Analysis of Vendors & Commercial Arrangement Considerations",
+                                      "Analysis of Critical Vendor Status",
+                                      "Analysis of Vendor Contracts",
+                                      "Analysis of Vendor Communications",
+                                      "Analysis of Utilities Considerations",
+                                      "Analysis of Securities Reporting Considerations",
+                                      "Analysis of Pre-Petition Lien Issues",
+                                      "Analysis of Financial Reports",
+                                      "Analysis of Insurance Considerations",
+                                      "Analysis of Use of Cash",
+                                      "Analysis of DIP Financing",
+                                      "Analysis of Cash Collateral",
+                                      "Analysis of Cash Management",
+                                      "Analysis of Monthly Operating Reports",
+                                      "Analysis of Cash Management Reports",
+                                      "Analysis of Pre-Petition Debt Agreements",
+                                      "Analysis of Student Loan Obligations",
+                                      "Analysis of Pre-Petition Auto Financing",
+                                      "Analysis of Pre-Petition Mortgage",
+                                      "Analysis of Dischargeability Issues",
+                                      "Analysis of Employee Benefits/Pensions",
+                                      "Analysis of Employee Retention",
+                                      "Analysis of KEIPs and KERPs",
+                                      "Analysis of Benefits Plans",
+                                      "Analysis of Severance Obligations",
+                                      "Analysis of Severance Arrangement Issues",
+                                      "Analysis of Environmental Considerations",
+                                      "Avoidance Action Practice",
+                                      "Asset Disposition Practice",
+                                      "Asset Sales Practice",
+                                      "Abandonment Practice",
+                                      "Advisory Service",
+                                      "Appropriations Practice",
+                                      "Government Appropriations Practice",
+                                      "Opinion Memo Practice",
+                                      "Manuals Practice",
+                                      "Grass Roots Organization and Management",
+                                      "Coalition Formation and Management Practice",
+                                      "Government Coalition Management",
+                                      "Strategic Communications Practice",
+                                      "Crisis Communications Practice",
+                                      "Corporate Campaigns Practice",
+                                      "Employee Rights Campaigns Practice",
+                                      "Tabletop Exercise Practice",
+                                      "Policies Practice",
+                                      "Crisis Management Practice",
+                                      "Governmental Monitoring Practice",
+                                      "Legislative Monitoring Practice",
+                                      "Judicial Branch Monitoring Practice",
+                                      "Executive Branch Monitoring Practice",
+                                      "Regulatory Services (Non-Dispute)",
+                                      "Regulatory Enforcement",
+                                      "Tax Practice",
+                                      "Use Tax Practice",
+                                      "Income Tax Practice",
+                                      "Sales Tax Practice",
+                                      "Excise Tax Practice",
+                                      "Property Tax Practice",
+                                      "Monitoring",
+                                      "International Trade Practice",
+                                      "Customs and Import Controls Practice",
+                                      "Export Controls Practice",
+                                      "Public Benefits",
+                                      "Public Housing Benefit",
+                                      "School-Based Public Benefit",
+                                      "Non-Contributory Benefit",
+                                      "Disability Public Benefit",
+                                      "In-home Supportive Service Disability Benefit",
+                                      "Assessment of Eligibility for Public Benefits",
+                                      "Old Age Public Benefits",
+                                      "Unemployment Public Benefits",
+                                      "Health Public Benefit",
+                                      "Family Health Public Benefit",
+                                      "Mother and Child Health Public Benefit",
+                                      "Pediatric Screening and Intervention Public Benefit",
+                                      "Food and Cash Public Benefit",
+                                      "Food Public Benefit",
+                                      "General Relief Benefit",
+                                      "Cash Public Benefit",
+                                      "Provider of Public Benefits",
+                                      "State-Provided Public Benefit",
+                                      "Nation-Provided Public Benefit",
+                                      "Locally Provided Public Benefit",
+                                      "Military and Veteran Benefits",
+                                      "Contributory Benefit",
+                                      "Pension Benefit",
+                                      "Estate Management Practice",
+                                      "Estate Planning Practice",
+                                      "Estate Administration Practice",
+                                      "Immigration Service",
+                                      "Government Relations",
+                                      "Legislative Drafting Practice",
+                                      "Public Comment Practice",
+                                      "Regulatory Drafting Practice",
+                                      "Lobbying",
+                                      "Disaster Relief",
+                                      "Economic Development Service",
+                                      "Regulatory Processing Service",
+                                      "Regulatory Application Service",
+                                      "Regulatory Eligibility Determination Service",
+                                      "Intellectual Property Registration Process",
+                                      "Domain Name Registration Process",
+                                      "Copyright Registration Process",
+                                      "Patent Registration Process",
+                                      "Patent Assessment Process",
+                                      "Prior Art Search Process",
+                                      "Patent Search Process",
+                                      "Plant Patent Registration",
+                                      "Design Patent Registration",
+                                      "Patent Opposition Process",
+                                      "Patent Reexamination Process",
+                                      "Utility Patent Registration",
+                                      "Trademark Registration Process",
+                                      "Trademark Opposition Process",
+                                      "Trademark Renewal Process",
+                                      "Trademark Search Process",
+                                      "Trademark Cancellation Process",
+                                      "Customs Recordal Process",
+                                      "Regulatory Compliance",
+                                      "Regulatory Disclosure Practice",
+                                      "Regulatory Investigation",
+                                      "Insurance Regulatory Practice",
+                                      "Audit Practice",
+                                      "Real Estate Regulatory Services",
+                                      "Roadway Closing",
+                                      "Density Credit Transactions",
+                                      "Roadway Dedication",
+                                      "Real Estate Permit Review",
+                                      "Real Estate Design Review",
+                                      "Real Estate Zoning Modifications",
+                                      "Zoning Document Amendments",
+                                      "Zoning Text Amendments",
+                                      "Zoning Map Amendments",
+                                      "Real Estate Special Exception",
+                                      "Clearing Title",
+                                      "Dispute Service",
+                                      "Litigation Practice",
+                                      "Alternative Dispute Resolution Practice",
+                                      "Mediation Practice",
+                                      "Arbitration Practice",
+                                      "Domain Name Dispute Resolution Practice",
+                                      "Affidavit / Declaration Practice",
+                                      "Appellate Practice",
+                                      "Appellate Briefing Practice",
+                                      "Appellate Motions and Submissions Practice",
+                                      "Appellate Argument Practice",
+                                      "Case Assessment, Development, Administration",
+                                      "Document and File Management",
+                                      "Co-Party Coordination",
+                                      "Analysis and Strategy",
+                                      "Fact Investigation and Development",
+                                      "Invalidity Analysis Practice",
+                                      "Technical Analysis",
+                                      "Fact Witness Interview Practice",
+                                      "Infringement Analysis Practice",
+                                      "Claim Construction Practice",
+                                      "Dispute Proceeding Type",
+                                      "Investigation Practice",
+                                      "Foreign Direct Investment Review",
+                                      "Inquiry Practice",
+                                      "Examination Under Oath",
+                                      "Tax Dispute Practice",
+                                      "Tax Audit Practice",
+                                      "Administrative Dispute Proceeding Practice",
+                                      "Trade Safeguards Dispute",
+                                      "Post-Grant Review",
+                                      "Unfair Import Investigation",
+                                      "U.S. Inter Partes Review",
+                                      "Covered Business Method Review",
+                                      "Civil Court Proceeding",
+                                      "Criminal Court Proceeding",
+                                      "Transactional Practice",
+                                      "Services Agreement Practice",
+                                      "Funds Practice",
+                                      "Fund Formation Practice",
+                                      "Lease Practice",
+                                      "Employment Transactions Practice",
+                                      "Executive Compensation Practice",
+                                      "Mortgage Practice",
+                                      "Securitization Practice",
+                                      "Licensing Practice",
+                                      "Separation Agreement  Practice",
+                                      "Mergers and Acquisitions Practice",
+                                      "M&A Practice Components",
+                                      "M&A A Preliminary Matters Practice",
+                                      "M&A D Ancillary Documents Practice",
+                                      "M&A F Regulatory and Specialty Matters Practice",
+                                      "M&A F8 Tax Practice",
+                                      "M&A F7 Securities Regulatory Matters Practice",
+                                      "M&A F3 Employment, Labor and Employee Benefits Practice",
+                                      "M&A F1 Antitrust / Competition Practice",
+                                      "M&A F5 Intellectual Property and Technology Practice",
+                                      "M&A F6 Real Property Practice",
+                                      "M&A F4 Environmental Practice",
+                                      "M&A F2 Data Security / Privacy / Data Protection / Cybersecurity Practice",
+                                      "M&A K Deal Management Practice",
+                                      "M&A I Integration Matters Practice",
+                                      "M&A C Due Diligence and Disclosure Schedules Practice",
+                                      "M&A H Closing Matters Practice",
+                                      "M&A J Post-Closing Requirements, Disputes & Adjustments Practice",
+                                      "M&A E Financing Practice",
+                                      "M&A B Purchase / Merger Agreement Practice",
+                                      "M&A G Shareholder / Board Matters Practice",
+                                      "Entity Formation Practice",
+                                      "Non-Profit Formation Practice",
+                                      "Business Formation Practice",
+                                      "Trust Formation Practice",
+                                      "Joint Venture Formation Practice",
+                                      "Purchase and Sale Practice",
+                                      "Service Sales Practice",
+                                      "Financing Practice",
+                                      "Equity Financing Practice",
+                                      "Secondary Offering Practice",
+                                      "Shelf Takedown",
+                                      "Shelf Registration",
+                                      "Private Placement Practice",
+                                      "Private Investment in Public Equity Practice",
+                                      "Direct Public Offering Practice",
+                                      "Initial Public Offering Practice",
+                                      "Rights Offering Practice",
+                                      "Debt Financing Practice",
+                                      "Lending Practice",
+                                      "Asset-Based Lending Practice",
+                                      "Reserve Based Lending Practice",
+                                      "Development of Property Practice"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "description": "IRI of the service"
+                                  },
+                                  "source": {
+                                    "type": "string",
+                                    "const": "sali"
+                                  },
+                                  "explanation": {
+                                    "type": "string",
+                                    "description": "Explanation of the classification"
+                                  },
+                                  "isPrimary": {
+                                    "type": "boolean",
+                                    "description": "Whether the classification is the primary classification for the matter"
+                                  },
+                                  "hierarchy": {
+                                    "type": "array",
+                                    "description": "The full hierarchical path from major class to this value",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "id"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/2/properties/matter/allOf/1/properties/classifications/items/anyOf/0/properties/value"
+                                        },
+                                        "id": {
+                                          "type": "string",
+                                          "description": "IRI of the service"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "type",
+                                  "value",
+                                  "source"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "const": "areaOfLaw"
+                                  },
+                                  "value": {
+                                    "type": "string",
+                                    "description": "The Area of Law is a SALI enumerated value that provides context to the process. The area of law should be thought of the primary subject of law for the process — think the class that’s the attorney was in when she learned about the applicable law. The area of law is provided primarily for context as in the examples, “He prosecuted the defendant” and “She prosecuted the patent.” The first is criminal law, the second is intellectual property law. There can be multiple areas of law.",
+                                    "enum": [
+                                      "Constitutional and Civil Rights Law",
+                                      "Individual Rights Law",
+                                      "Environmental, Social, and Governance Law",
+                                      "Discrimination Law",
+                                      "Political Rights Law",
+                                      "Personal Injury and Tort Law",
+                                      "Personal Property Law",
+                                      "Product Liability Law",
+                                      "Defamation Law",
+                                      "Mass Torts Law",
+                                      "Negligence and Malpractice Law",
+                                      "Assault Law",
+                                      "Fraud and Economic Torts Law",
+                                      "Information Security Law",
+                                      "Cybersecurity Law",
+                                      "Privacy Law",
+                                      "Government Access and Disclosure Law",
+                                      "Banking Law",
+                                      "Cryptocurrency Law",
+                                      "Bank Secrecy and Anti-Money Laundering Law",
+                                      "Banking Operations Law",
+                                      "Municipal Law",
+                                      "Public and Administrative Law",
+                                      "Indigenous People's Law",
+                                      "Military and Veterans Law",
+                                      "Project Finance Law",
+                                      "Public Health and Welfare Law",
+                                      "Public Finance Law",
+                                      "Public Policy and Government Affairs Law",
+                                      "Government Contracts Law",
+                                      "Election Law",
+                                      "Bankruptcy, Insolvency, and Restructuring Law",
+                                      "Personal Insolvency Law",
+                                      "Corporate Insolvency Law",
+                                      "Law of Obligations",
+                                      "Food and Drug Law",
+                                      "Energy Law",
+                                      "Renewable Energy Law",
+                                      "Solar Energy Law",
+                                      "Hydroelectric Energy Law",
+                                      "Wind Power Law",
+                                      "Nuclear Law",
+                                      "Energy Sales and Transmission Law",
+                                      "Oil and Gas Law",
+                                      "Transportation Law",
+                                      "Motor Vehicle Law",
+                                      "Aviation Law",
+                                      "Railway Law",
+                                      "Personal and Family Law",
+                                      "Trusts and Estate Planning Law",
+                                      "Custody Law",
+                                      "Juvenile Law",
+                                      "Matrimonial Law",
+                                      "Immigration Law",
+                                      "Employment Immigration Law",
+                                      "Adoption, Surrogacy, and Paternity Law",
+                                      "Probate Law",
+                                      "Religious Law",
+                                      "Islamic Law",
+                                      "Jewish Law",
+                                      "Indigenous and Tribal Religious Laws",
+                                      "Canon Law",
+                                      "Sikh Law",
+                                      "Hindu Law",
+                                      "Buddhist Law",
+                                      "Cannabis Law",
+                                      "Gaming Law",
+                                      "Securities and Financial Instruments Law",
+                                      "Investment Advisor Law",
+                                      "Derivatives and Futures Law",
+                                      "Investment Companies Law",
+                                      "Exchanges Law",
+                                      "Structured Finance Law",
+                                      "Commodities Law",
+                                      "Security Offerings and Capital Markets Law",
+                                      "Broker-Dealer Law",
+                                      "Private Equity, Hedge Funds and Venture Capital Law",
+                                      "Contract Law",
+                                      "Property Rights and Transactions Law",
+                                      "Civil Contract Law",
+                                      "Commercial Transactions Law",
+                                      "Employment Contracts Law",
+                                      "Independent Contractor Law",
+                                      "Labor and Employment Law",
+                                      "Reduction in Force Law",
+                                      "Employment Law",
+                                      "Substance Abuse and Drug Testing Law",
+                                      "Labor Law",
+                                      "Wage and Hour Law",
+                                      "Employment Discrimination Law",
+                                      "Employment Health and Safety Law",
+                                      "Pay Equity Law",
+                                      "Termination Law",
+                                      "Unemployment Benefits Law",
+                                      "Employee Pension and Benefits Law",
+                                      "Employee Stock Ownership Plans Law",
+                                      "Workers Compensation Law",
+                                      "Education Law",
+                                      "Insurance Law",
+                                      "Disability Insurance Law",
+                                      "Accident Benefits Law",
+                                      "Captive Insurance Law",
+                                      "Real Property Law",
+                                      "Condominium Law",
+                                      "Construction and Development Law",
+                                      "Eminent Domain Law",
+                                      "Landlord Tenant Law",
+                                      "Land Use and Zoning Law",
+                                      "Intellectual Property Law",
+                                      "Patent Law",
+                                      "Trade Secret Law",
+                                      "Trademark and Trade Dress Law",
+                                      "Copyright Law",
+                                      "Finance and Lending Law",
+                                      "Commercial Finance Law",
+                                      "Lender Liability Law",
+                                      "Debt Collection Law",
+                                      "Corporate Law",
+                                      "Business Organizations Law",
+                                      "Corporate Governance Law",
+                                      "Financial Reporting Law",
+                                      "Mergers and Acquisitions Law",
+                                      "Criminal Law",
+                                      "Prison Law",
+                                      "Anti-Corruption Law",
+                                      "Asset Forfeiture Law",
+                                      "Organized Crime Law",
+                                      "Business and Financial Crimes Law",
+                                      "Cybercrime Law",
+                                      "Environmental and Natural Resource Law",
+                                      "Water Resources and Wetlands Law",
+                                      "Forest Resources Law",
+                                      "Contaminant Cleanup Law",
+                                      "Waste Management Law",
+                                      "Air Quality Law",
+                                      "Water Quality Law",
+                                      "Mineral Resources Law",
+                                      "Chemical Safety Law",
+                                      "Fish and Game Law",
+                                      "Impact Assessment Law",
+                                      "Wildlife and Plants Law",
+                                      "Agriculture Law",
+                                      "Tax and Revenue Law",
+                                      "Estates, Gifts, and Trusts Law",
+                                      "Non-Profit and Tax-Exempt Organizations Law",
+                                      "Tax Law",
+                                      "Tax Credits Law",
+                                      "Health Law",
+                                      "Telecommunications, Media, and Entertainment Law",
+                                      "Entertainment Law",
+                                      "Telecommunications Law",
+                                      "Broadcasting Law",
+                                      "Telecommunication Utilities Law",
+                                      "Sports Law",
+                                      "Advertising Law",
+                                      "Commercial and Trade Law",
+                                      "Trade Law",
+                                      "Admiralty and Maritime Law",
+                                      "Consumer Protection Law",
+                                      "Franchise Law",
+                                      "Antitrust and Competition Law"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "description": "IRI of the area of law"
+                                  },
+                                  "source": {
+                                    "type": "string",
+                                    "const": "sali"
+                                  },
+                                  "explanation": {
+                                    "type": "string",
+                                    "description": "Explanation of the classification"
+                                  },
+                                  "isPrimary": {
+                                    "type": "boolean",
+                                    "description": "Whether the classification is the primary classification for the matter"
+                                  },
+                                  "hierarchy": {
+                                    "type": "array",
+                                    "description": "The full hierarchical path from major class to this value",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "value",
+                                        "id"
+                                      ],
+                                      "properties": {
+                                        "value": {
+                                          "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/2/properties/matter/allOf/1/properties/classifications/items/anyOf/1/properties/value"
+                                        },
+                                        "id": {
+                                          "type": "string",
+                                          "description": "IRI of the area of law"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/webhooks": {
+      "get": {
+        "operationId": "listWebhooks",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/organization.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/matter.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Webhook"
+        ],
+        "summary": "List all webhooks",
+        "description": "Get a list of all webhooks.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/paths/~1webhooks/post/requestBody/content/application~1json/schema"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      },
+      "post": {
+        "operationId": "createWebhook",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.write"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/organization.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Webhook"
+        ],
+        "summary": "Create a new webhook",
+        "description": "Add a new webhook.",
+        "requestBody": {
+          "description": "Webhook creation request body",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "url",
+                  "createdAt"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "readOnly": true
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "enabled",
+                      "disabled"
+                    ]
+                  },
+                  "events": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "description": "The events that this webhook will trigger for. If no events are specified or if the value includes '*', the webhook will trigger for all events.",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/parameters/eventTypes/schema/items"
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "*"
+                          ],
+                          "description": "Wildcard to represent all event types"
+                        }
+                      ]
+                    }
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "readOnly": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/paths/~1webhooks/post/requestBody/content/application~1json/schema"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/webhooks/{webhookId}": {
+      "get": {
+        "operationId": "getWebhook",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/organization.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/matter.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Webhook"
+        ],
+        "summary": "Get a webhook",
+        "description": "Get a webhook by its ID.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/webhookId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/paths/~1webhooks/post/responses/201"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "404": {
+            "description": "Not found",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/paths/~1test/get/responses/500/content/application~1json/schema"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      },
+      "put": {
+        "operationId": "updateWebhook",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.write"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/organization.write"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/matter.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Webhook"
+        ],
+        "summary": "Update a webhook",
+        "description": "Update an existing webhook.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/webhookId"
+          }
+        ],
+        "requestBody": {
+          "description": "Webhook update request body",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/paths/~1webhooks/post/requestBody/content/application~1json/schema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/paths/~1webhooks/post/responses/201"
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "404": {
+            "$ref": "#/paths/~1webhooks~1%7BwebhookId%7D/get/responses/404"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      },
+      "delete": {
+        "operationId": "deleteWebhook",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.write"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/organization.write"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/matter.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Webhook"
+        ],
+        "summary": "Delete a webhook",
+        "description": "Delete a webhook.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/webhookId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Webhook deleted successfully"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "404": {
+            "$ref": "#/paths/~1webhooks~1%7BwebhookId%7D/get/responses/404"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "operationId": "listEvents",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/organization.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/matter.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Webhook"
+        ],
+        "summary": "Poll for events",
+        "description": "Long polling endpoint for all types of events. Returns an array of events that occurred since the last poll.\n",
+        "parameters": [
+          {
+            "name": "pageToken",
+            "in": "query",
+            "description": "Token to be passed in for pagination. This is the unmodified version of nextPageToken from a response",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/eventTypes"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "events"
+                  ],
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "allOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "type",
+                              "status",
+                              "timestamp"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Unique identifier for the event",
+                                "readOnly": true
+                              },
+                              "type": {
+                                "$ref": "#/components/parameters/eventTypes/schema/items",
+                                "description": "Type of the event"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "created",
+                                  "processing",
+                                  "processed",
+                                  "failed"
+                                ],
+                                "readOnly": true
+                              },
+                              "timestamp": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 formatted timestamp of when the event occurred"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "payload"
+                            ],
+                            "properties": {
+                              "payload": {
+                                "anyOf": [
+                                  {
+                                    "title": "Contact Payload",
+                                    "type": "object",
+                                    "required": [
+                                      "contact",
+                                      "changes"
+                                    ],
+                                    "properties": {
+                                      "contact": {
+                                        "$ref": "#/paths/~1contacts/post/requestBody/content/application~1json/schema/allOf/0"
+                                      },
+                                      "change": {
+                                        "type": "object",
+                                        "description": "Represents a change to a resource (contact or organization)",
+                                        "required": [
+                                          "resource",
+                                          "changedAt",
+                                          "patch"
+                                        ],
+                                        "properties": {
+                                          "resource": {
+                                            "type": "object",
+                                            "description": "Information about the resource that was changed",
+                                            "required": [
+                                              "id",
+                                              "uri",
+                                              "type"
+                                            ],
+                                            "properties": {
+                                              "id": {
+                                                "type": "string",
+                                                "description": "External identifier for the resource, if applicable",
+                                                "example": "1002"
+                                              },
+                                              "uri": {
+                                                "type": "string",
+                                                "description": "URI of the changed resource",
+                                                "example": "ct:4972299a-b7cc-59a3-a7b2-a84639b1761a"
+                                              },
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "contact",
+                                                  "organization"
+                                                ],
+                                                "description": "Type of the changed resource"
+                                              }
+                                            }
+                                          },
+                                          "changedAt": {
+                                            "type": "string",
+                                            "format": "date-time",
+                                            "description": "Timestamp of when the change occurred"
+                                          },
+                                          "patch": {
+                                            "description": "JSON Patch describing the changes made to the resource",
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "required": [
+                                                "op",
+                                                "path"
+                                              ],
+                                              "properties": {
+                                                "op": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "add",
+                                                    "remove",
+                                                    "replace",
+                                                    "move",
+                                                    "copy",
+                                                    "test"
+                                                  ]
+                                                },
+                                                "path": {
+                                                  "type": "string",
+                                                  "description": "A JSON Pointer https://tools.ietf.org/html/rfc6901",
+                                                  "examples": [
+                                                    "/a/b/c"
+                                                  ]
+                                                },
+                                                "value": {
+                                                  "description": "The value related to the path and op. Can be any type. Required for add, replace, test"
+                                                },
+                                                "from": {
+                                                  "type": "string",
+                                                  "description": "Required for move and copy ops. A JSON Pointer https://tools.ietf.org/html/rfc6901"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "title": "Organization Payload",
+                                    "type": "object",
+                                    "required": [
+                                      "organization",
+                                      "changes"
+                                    ],
+                                    "properties": {
+                                      "organization": {
+                                        "$ref": "#/paths/~1organizations/post/requestBody/content/application~1json/schema/allOf/0"
+                                      },
+                                      "change": {
+                                        "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/0/properties/change"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "title": "Matter Payload",
+                                    "type": "object",
+                                    "required": [
+                                      "matter",
+                                      "changes"
+                                    ],
+                                    "properties": {
+                                      "matter": {
+                                        "$ref": "#/paths/~1matters~1%7BmatterId%7D/get/responses/200/content/application~1json/schema"
+                                      },
+                                      "change": {
+                                        "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/0/properties/change"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "title": "Failed Workflow Payload",
+                                    "type": "object",
+                                    "required": [
+                                      "change"
+                                    ],
+                                    "properties": {
+                                      "change": {
+                                        "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/0/properties/change"
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "nextPageToken": {
+                      "type": "string",
+                      "description": "A token that can be used for pagination to retrieve the next page of results."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/test": {
+      "get": {
+        "operationId": "testAuthentication",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/contact.write"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/organization.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/organization.write"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/matter.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/matter.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Webhook"
+        ],
+        "summary": "Test Authentication",
+        "description": "Check that the authentication is working.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token is missing, invalid or has expired",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-amzn-ErrorType": {
+                "schema": {
+                  "type": "string",
+                  "examples": [
+                    "UnauthorizedException"
+                  ]
+                }
+              },
+              "x-amzn-RequestId": {
+                "schema": {
+                  "type": "string",
+                  "description": "The unique RequestId. Can be used for debugging."
+                }
+              },
+              "X-Amzn-Trace-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "A Trace ID. Can be used for debugging."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "A short message regarding the type of error",
+                      "examples": [
+                        "Unauthorized",
+                        "Not Found",
+                        "Bad Request"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An Error occured during the request",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-amzn-RequestId": {
+                "schema": {
+                  "type": "string",
+                  "description": "The unique RequestId. Can be used for debugging."
+                }
+              },
+              "X-Amzn-Trace-Id": {
+                "schema": {
+                  "type": "string",
+                  "description": "A Trace ID. Can be used for debugging."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "description": "A short, summary of the problem type. Written in english and readable\nfor engineers (usually not suited for non technical stakeholders and\nnot localized);\n",
+                      "examples": [
+                        "Service Unavailable",
+                        "BadRequestParametersError"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "format": "int32",
+                      "description": "The HTTP status code generated by the origin server for this occurrence\nof the problem.\n",
+                      "minimum": 100,
+                      "exclusiveMaximum": 600,
+                      "examples": [
+                        503
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "A human readable explanation specific to this occurrence of the\nproblem.\n",
+                      "examples": [
+                        "Connection to database timed out"
+                      ]
+                    },
+                    "instance": {
+                      "type": "string",
+                      "description": "A unique identifier specific to the occurrence of the problem.\nIt may be used for troubleshooting.\n"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "oauth2": {
+        "type": "oauth2",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "https://auth.external.index.io/oauth2/token",
+            "scopes": {
+              "bch.external/contact.write": "create new contact monitoring requests",
+              "bch.external/contact.read": "check the status of a contact",
+              "bch.external/organization.write": "create and update organization information",
+              "bch.external/organization.read": "read organization information",
+              "bch.external/matter.write": "create new matter classification requests",
+              "bch.external/matter.read": "read matter classification requests"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "contactId": {
+        "in": "path",
+        "name": "contactId",
+        "description": "The ID of a contact from your system",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "webhookId": {
+        "in": "path",
+        "name": "webhookId",
+        "description": "The ID of the webhook",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "eventTypes": {
+        "name": "eventTypes",
+        "in": "query",
+        "description": "Comma-separated list of event types to filter",
+        "required": false,
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "contact-updated",
+              "contact-profile-updated",
+              "organization-updated",
+              "workflow-failed",
+              "matter-updated"
+            ]
+          }
+        }
+      },
+      "organizationId": {
+        "in": "path",
+        "name": "organizationId",
+        "description": "The ID of an organization from your system",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "matterId": {
+        "in": "path",
+        "name": "matterId",
+        "description": "The ID of a matter from your system",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "API Server",
+      "url": "https://external.index.io/v1"
+    }
+  ]
+}
