@@ -23,7 +23,7 @@
   "info": {
     "x-audience": "external-partner",
     "title": "Index Solutions API",
-    "description": "# API for Index Solutions Services\n\nAll API endpoints require authorization with a Bearer token in the Authorization header. The token can be retrieved from the OAuth 2.0 token endpoint. More information regarding this endpoint can be found in the [AWS Cognito documentation](https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html).\n\n## Contact Monitoring\nFor Contact Monitoring we attempt to find a public profile for the contact and monitor that profile for changes over time. We then notify those who are subscribed to updates about relevant changes to the contact or the underlying public profile.\n\nThe input to a Contact Monitoring Request is a contact (with required name and some additional information such as job title/company or email) as well as configuration options.\n\n## Entity Resolution\nDuring an Entity Resolution we attempt to find the most likely ID in the requested database (i.e. either the DUNS number or S&P ID). Depending on the configuration option the result also includes fields like legal name, primary address, Global Ultimate Parent, NAICS Codes, and SALI Codes.\n\nThe input to an Entity Resolution Request is a company name and a location (optional but highly recommended for best results) as well as configuration options to control the type of data to be returned.\n\n## Matter Classification\nThe Matter Classification API allows you to classify a matter into one or more areas of law or services.\n\n## Webhooks\nWebhooks allow you to receive timely notifications about updates to monitored contacts, entities, or profiles. You can configure webhooks to listen for specific types of events and receive updates when changes occur.\n\nTo use webhooks:\n1. Create a webhook endpoint on your server to receive POST requests from our system.\n2. Register your webhook URL using the create webhook API endpoint.\n3. Configure the types of events you want to receive (profile updates, contact updates, entity updates).\n4. Our system will send POST requests to your webhook URL whenever relevant events occur.\n\nWebhook payloads include details about the event type and the updated data, allowing you to keep your systems in sync with the latest information from Index Solutions.\nWebhook calls include a signature header that can be used to verify the authenticity of the payload.\n\n### Event Types\n\n**contact-updated:** We have discovered an update to the underlying contact resource that should be integrated to your system.\n\n**contact-profile-updated:** We have discoeverd an update the the profile that is associated with the contact resource. In case you do track those separately, your system should be updated.\n\n**organization-updated:** We have discovered an update to the underlying organization resource that should be integrated to your system.\n\n**matter-updated:** We have classified a matter into one or more areas of law or services.\n",
+    "description": "# API for Index Solutions Services\n\nAll API endpoints require authorization with a Bearer token in the Authorization header. The token can be retrieved from the OAuth 2.0 token endpoint. More information regarding this endpoint can be found in the [AWS Cognito documentation](https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html).\n\n## Contact Monitoring\nFor Contact Monitoring we attempt to find a public profile for the contact and monitor that profile for changes over time. We then notify those who are subscribed to updates about relevant changes to the contact or the underlying public profile.\n\nThe input to a Contact Monitoring Request is a contact (with required name and some additional information such as job title/company or email) as well as configuration options.\n\n## Entity Resolution\nDuring an Entity Resolution we attempt to find the most likely ID in the requested database (i.e. either the DUNS number or S&P ID). Depending on the configuration option the result also includes fields like legal name, primary address, Global Ultimate Parent, NAICS Codes, and SALI Codes.\n\nThe input to an Entity Resolution Request is a company name and a location (optional but highly recommended for best results) as well as configuration options to control the type of data to be returned.\n\n## Matter Classification\nThe Matter Classification API allows you to classify a matter into one or more areas of law or services.\n\n## Timecard Classification\nThe Timecard Classification API allows you to classify individual time entries (timecards) into specific legal services using the SALI (Standards Advancement for the Legal Industry) taxonomy. Timecards are submitted under an existing matter and include a narrative describing the work performed. Our system analyzes the narrative and assigns appropriate SALI service classifications, helping standardize billing and matter management practices.\n\n## Webhooks\nWebhooks allow you to receive timely notifications about updates to monitored contacts, entities, or profiles. You can configure webhooks to listen for specific types of events and receive updates when changes occur.\n\nTo use webhooks:\n1. Create a webhook endpoint on your server to receive POST requests from our system.\n2. Register your webhook URL using the create webhook API endpoint.\n3. Configure the types of events you want to receive (profile updates, contact updates, entity updates).\n4. Our system will send POST requests to your webhook URL whenever relevant events occur.\n\nWebhook payloads include details about the event type and the updated data, allowing you to keep your systems in sync with the latest information from Index Solutions.\n\n### Webhook Signature Verification\nEach webhook request includes an `X-Webhook-Signature` header containing an HMAC-SHA256 signature of the payload. When you create a webhook, the response includes a `secret` field. Use this secret to verify incoming webhook requests:\n``` signature = HMAC-SHA256(JSON.stringify(payload), secret) ```\nCompare the computed signature with the `X-Webhook-Signature` header value to ensure the request originated from Index Solutions.\n\n### Event Types\n\n**contact-updated:** We have discovered an update to the underlying contact resource that should be integrated to your system.\n\n**contact-profile-updated:** We have discoeverd an update the the profile that is associated with the contact resource. In case you do track those separately, your system should be updated.\n\n**organization-updated:** We have discovered an update to the underlying organization resource that should be integrated to your system.\n\n**matter-updated:** We have classified a matter into one or more areas of law or services.\n",
     "version": "1.4.0",
     "termsOfService": "https://index.io/terms",
     "contact": {
@@ -52,6 +52,14 @@
     {
       "name": "Matter",
       "description": "Matter related requests"
+    },
+    {
+      "name": "Timecard",
+      "description": "Timecard classification requests"
+    },
+    {
+      "name": "Quota",
+      "description": "Quota and license availability requests"
     }
   ],
   "paths": {
@@ -529,6 +537,183 @@
         }
       }
     },
+    "/contacts/{contactId}/profile": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/contactId"
+        }
+      ],
+      "get": {
+        "operationId": "getContactProfile",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Contact"
+        ],
+        "summary": "Get Contact Profile Data for a given ID",
+        "description": "This API endpoint fetches the data of the profile for a given Contact ID.\n",
+        "responses": {
+          "200": {
+            "description": "Successful profile response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The data for a specific contact profile.",
+                  "oneOf": [
+                    {
+                      "title": "LinkedIn Data",
+                      "type": "object",
+                      "description": "Linkedin contact data",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "The ID of the contact"
+                        },
+                        "firstName": {
+                          "type": "string",
+                          "description": "The first name of the contact"
+                        },
+                        "lastName": {
+                          "type": "string",
+                          "description": "The last name of the contact"
+                        },
+                        "middleName": {
+                          "type": "string",
+                          "description": "The middle name of the contact"
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "description": "The display name of the contact"
+                        },
+                        "tagline": {
+                          "type": "string",
+                          "description": "The tagline of the contact"
+                        },
+                        "aboutme": {
+                          "type": "string",
+                          "description": "The about me of the contact"
+                        },
+                        "location": {
+                          "type": "string",
+                          "description": "The location of the contact"
+                        },
+                        "urls": {
+                          "type": "array",
+                          "description": "The URLs of the contact",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "emails": {
+                          "type": "array",
+                          "description": "The emails of the contact",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "positions": {
+                          "type": "array",
+                          "description": "The positions of the contact",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "education": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "skills": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/contacts/{contactId}/profile/raw": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/contactId"
+        }
+      ],
+      "get": {
+        "operationId": "getContactProfileRaw",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Contact"
+        ],
+        "summary": "Get Contact Profile Raw Data",
+        "description": "This API endpoint fetches the data of the profile for a given Contact ID in raw format.\n",
+        "responses": {
+          "200": {
+            "$ref": "#/paths/~1contacts~1%7BcontactId%7D~1profile/get/responses/200"
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
     "/organizations": {
       "post": {
         "operationId": "createOrganization",
@@ -582,6 +767,17 @@
                           "type": "string"
                         }
                       },
+                      "entityType": {
+                        "type": "string",
+                        "description": "The type of entity this organization represents.  It will be provided by the ER process.",
+                        "readOnly": true,
+                        "enum": [
+                          "organization",
+                          "person",
+                          "other",
+                          "unknown"
+                        ]
+                      },
                       "urls": {
                         "type": "array",
                         "uniqueItems": true,
@@ -628,9 +824,9 @@
                               "enum": [
                                 "self",
                                 "global-parent",
-                                "domestic-parent",
-                                "parent",
-                                "headquarters"
+                                "global-financial-parent",
+                                "global-related-entity",
+                                "parent"
                               ]
                             },
                             "updatedAt": {
@@ -1482,8 +1678,7 @@
               "naics",
               "sali",
               "customTaxonomy",
-              "linkedin",
-              "idx-related-profile"
+              "linkedin"
             ]
           }
         }
@@ -1581,7 +1776,8 @@
             "type": "string",
             "enum": [
               "global-parent",
-              "domestic-parent",
+              "global-financial-parent",
+              "global-related-entity",
               "parent"
             ]
           }
@@ -1599,8 +1795,8 @@
         "tags": [
           "Organization"
         ],
-        "summary": "Get Organization Profiles for the Global or Domestic Parent of the Organization with a given ID",
-        "description": "This API endpoint fetches the Profiles for a given Organization ID.\n",
+        "summary": "Get Organization Profiles for the Global Operating, Financial, and Related Entity Parents of the Organization with a given ID",
+        "description": "This API endpoint fetches the Profiles for a given Organization ID.  The Global Ultimate is the ultimate \"operating\" parent. The Global Financial Ultimate is the ultimate \"financial\" parent and will roll up higher than the Global Ultimate when the parent is a financial entity. The Global Related Entity rolls up the highest and will include affiliates that may not have direct ownership but is useful for clustering.\n",
         "responses": {
           "200": {
             "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200"
@@ -1764,6 +1960,26 @@
                           "LIT - Contract Litigation",
                           "International Trade//Trade Policy"
                         ]
+                      },
+                      "classificationStatus": {
+                        "type": "string",
+                        "enum": [
+                          "created",
+                          "pending",
+                          "processing",
+                          "classified",
+                          "failed",
+                          "inactive"
+                        ],
+                        "description": "Lifecycle status values for matter classification."
+                      },
+                      "timecardStatusCounts": {
+                        "type": "object",
+                        "description": "Aggregated count of associated timecards per status.",
+                        "additionalProperties": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
                       },
                       "players": {
                         "type": "array",
@@ -1930,387 +2146,7 @@
                           "items": {
                             "anyOf": [
                               {
-                                "type": "object",
-                                "required": [
-                                  "type",
-                                  "value",
-                                  "source"
-                                ],
-                                "properties": {
-                                  "type": {
-                                    "type": "string",
-                                    "const": "service"
-                                  },
-                                  "value": {
-                                    "type": "string",
-                                    "description": "SALI Service Classes and Subclasses",
-                                    "enum": [
-                                      "Bankruptcy and Financial Restructuring Practice",
-                                      "Bankruptcy Claims Practice",
-                                      "Claims Filing Practice",
-                                      "Claims Objection Practice",
-                                      "Claims Review Practice",
-                                      "Reorganization Bankruptcy",
-                                      "US Chapter 13 Bankruptcy",
-                                      "US Chapter 11 Bankruptcy",
-                                      "US Chapter 11 Bankruptcy - Streamlined",
-                                      "US Chapter 11 - Small Business Debtors",
-                                      "US Chapter 12 Bankruptcy",
-                                      "Bankruptcy Budgeting Practice",
-                                      "Fee and Employment Practice",
-                                      "Fee Objection Practice",
-                                      "Fee Application Process",
-                                      "Employment Application Process",
-                                      "Employment Objection Process",
-                                      "Adversary Proceeding Practice",
-                                      "Trial Court Practice",
-                                      "Pretrial Practice",
-                                      "Discovery Practice",
-                                      "Document Collection and Production Practice",
-                                      "Identification of Documents Practice",
-                                      "Analysis of Documents Practice",
-                                      "Processing of Documents Practice",
-                                      "Presentation of Documents Practice",
-                                      "Preservation of Documents Practice",
-                                      "Collection of Documents Practice",
-                                      "Review of Documents Practice",
-                                      "Production of Documents Practice",
-                                      "Written Discovery Practice",
-                                      "Interrogatories Practice",
-                                      "Subpoena Practice",
-                                      "Subpoena Response Practice",
-                                      "Subpoena Assertion Practice",
-                                      "Requests for Admission Practice",
-                                      "Requests for Production Practice",
-                                      "Deposition Practice",
-                                      "Corporate Representative Deposition Practice",
-                                      "Expert Deposition Practice",
-                                      "Fact Deposition Practice",
-                                      "Deposition Posture",
-                                      "Observing Deposition",
-                                      "Defending Deposition",
-                                      "Taking Deposition",
-                                      "Discovery Motion Practice",
-                                      "Expert Practice",
-                                      "Physical Examination Practice",
-                                      "Expert Report Practice",
-                                      "Expert Interview Practice",
-                                      "Daubert Motion Practice",
-                                      "Pretrial Motion Practice",
-                                      "Dispositive Motion Practice",
-                                      "Injunctions, Restraining Orders, and Provisional Remedies Practice",
-                                      "Pleadings Practice",
-                                      "Post-Trial Practice",
-                                      "Post-Trial Submission Practice",
-                                      "Trial and Post-Trial Motion Practice",
-                                      "Trial Practice",
-                                      "Witness Examination Practice",
-                                      "Cross-Examination of Witness",
-                                      "Direct-Examination of Witness",
-                                      "Jury Selection / Voire Dire Practice",
-                                      "Trial Preparation Practice",
-                                      "Trial Testimony Practice",
-                                      "Asset Analysis",
-                                      "Asset Valuation Practice",
-                                      "Asset Due Diligence Practice",
-                                      "Examiner Investigation Practice",
-                                      "Asset Turnover Practice",
-                                      "Non-Litigation Recovery Practice",
-                                      "Financial Advisor Practice",
-                                      "Out-of-Court Restructuring",
-                                      "Receivership Creation",
-                                      "Assignment for the Benefit of Creditors",
-                                      "Individualized Restructuring",
-                                      "Liquidation Bankruptcy",
-                                      "US Chapter 7 Bankruptcy",
-                                      "Relief from Stay Practice",
-                                      "Automatic Stay Practice",
-                                      "Adequate Protection Practice",
-                                      "Bankruptcy Case Closure Practice",
-                                      "Insolvency Practice",
-                                      "US Chapter 15 Bankruptcy",
-                                      "Corporate Governance Analysis",
-                                      "Debt Repayment Plan Bankruptcy",
-                                      "Analysis of Entity Formation",
-                                      "Creditor Meeting and Communication Practice",
-                                      "Bankruptcy Exit Financing",
-                                      "Bankruptcy Initiation Type",
-                                      "Voluntary Bankruptcy",
-                                      "Involuntary Bankruptcy",
-                                      "Bankruptcy Motion Practice",
-                                      "US Chapter 9 Bankruptcy",
-                                      "Settlement, Demand, and Collection Practice",
-                                      "Demand Letter Practice",
-                                      "Debt Collection Practice",
-                                      "Domestication Action",
-                                      "Settlement Practice",
-                                      "Negotiation Sequence",
-                                      "Collective Bargaining Event",
-                                      "Obligation Analysis",
-                                      "Analysis of Vendors & Commercial Arrangement Considerations",
-                                      "Analysis of Critical Vendor Status",
-                                      "Analysis of Vendor Contracts",
-                                      "Analysis of Vendor Communications",
-                                      "Analysis of Utilities Considerations",
-                                      "Analysis of Securities Reporting Considerations",
-                                      "Analysis of Pre-Petition Lien Issues",
-                                      "Analysis of Financial Reports",
-                                      "Analysis of Insurance Considerations",
-                                      "Analysis of Use of Cash",
-                                      "Analysis of DIP Financing",
-                                      "Analysis of Cash Collateral",
-                                      "Analysis of Cash Management",
-                                      "Analysis of Monthly Operating Reports",
-                                      "Analysis of Cash Management Reports",
-                                      "Analysis of Pre-Petition Debt Agreements",
-                                      "Analysis of Student Loan Obligations",
-                                      "Analysis of Pre-Petition Auto Financing",
-                                      "Analysis of Pre-Petition Mortgage",
-                                      "Analysis of Dischargeability Issues",
-                                      "Analysis of Employee Benefits/Pensions",
-                                      "Analysis of Employee Retention",
-                                      "Analysis of KEIPs and KERPs",
-                                      "Analysis of Benefits Plans",
-                                      "Analysis of Severance Obligations",
-                                      "Analysis of Severance Arrangement Issues",
-                                      "Analysis of Environmental Considerations",
-                                      "Avoidance Action Practice",
-                                      "Asset Disposition Practice",
-                                      "Asset Sales Practice",
-                                      "Abandonment Practice",
-                                      "Advisory Service",
-                                      "Appropriations Practice",
-                                      "Government Appropriations Practice",
-                                      "Opinion Memo Practice",
-                                      "Manuals Practice",
-                                      "Grass Roots Organization and Management",
-                                      "Coalition Formation and Management Practice",
-                                      "Government Coalition Management",
-                                      "Strategic Communications Practice",
-                                      "Crisis Communications Practice",
-                                      "Corporate Campaigns Practice",
-                                      "Employee Rights Campaigns Practice",
-                                      "Tabletop Exercise Practice",
-                                      "Policies Practice",
-                                      "Crisis Management Practice",
-                                      "Governmental Monitoring Practice",
-                                      "Legislative Monitoring Practice",
-                                      "Judicial Branch Monitoring Practice",
-                                      "Executive Branch Monitoring Practice",
-                                      "Regulatory Services (Non-Dispute)",
-                                      "Regulatory Enforcement",
-                                      "Tax Practice",
-                                      "Use Tax Practice",
-                                      "Income Tax Practice",
-                                      "Sales Tax Practice",
-                                      "Excise Tax Practice",
-                                      "Property Tax Practice",
-                                      "Monitoring",
-                                      "International Trade Practice",
-                                      "Customs and Import Controls Practice",
-                                      "Export Controls Practice",
-                                      "Public Benefits",
-                                      "Public Housing Benefit",
-                                      "School-Based Public Benefit",
-                                      "Non-Contributory Benefit",
-                                      "Disability Public Benefit",
-                                      "In-home Supportive Service Disability Benefit",
-                                      "Assessment of Eligibility for Public Benefits",
-                                      "Old Age Public Benefits",
-                                      "Unemployment Public Benefits",
-                                      "Health Public Benefit",
-                                      "Family Health Public Benefit",
-                                      "Mother and Child Health Public Benefit",
-                                      "Pediatric Screening and Intervention Public Benefit",
-                                      "Food and Cash Public Benefit",
-                                      "Food Public Benefit",
-                                      "General Relief Benefit",
-                                      "Cash Public Benefit",
-                                      "Provider of Public Benefits",
-                                      "State-Provided Public Benefit",
-                                      "Nation-Provided Public Benefit",
-                                      "Locally Provided Public Benefit",
-                                      "Military and Veteran Benefits",
-                                      "Contributory Benefit",
-                                      "Pension Benefit",
-                                      "Estate Management Practice",
-                                      "Estate Planning Practice",
-                                      "Estate Administration Practice",
-                                      "Immigration Service",
-                                      "Government Relations",
-                                      "Legislative Drafting Practice",
-                                      "Public Comment Practice",
-                                      "Regulatory Drafting Practice",
-                                      "Lobbying",
-                                      "Disaster Relief",
-                                      "Economic Development Service",
-                                      "Regulatory Processing Service",
-                                      "Regulatory Application Service",
-                                      "Regulatory Eligibility Determination Service",
-                                      "Intellectual Property Registration Process",
-                                      "Domain Name Registration Process",
-                                      "Copyright Registration Process",
-                                      "Patent Registration Process",
-                                      "Patent Assessment Process",
-                                      "Prior Art Search Process",
-                                      "Patent Search Process",
-                                      "Plant Patent Registration",
-                                      "Design Patent Registration",
-                                      "Patent Opposition Process",
-                                      "Patent Reexamination Process",
-                                      "Utility Patent Registration",
-                                      "Trademark Registration Process",
-                                      "Trademark Opposition Process",
-                                      "Trademark Renewal Process",
-                                      "Trademark Search Process",
-                                      "Trademark Cancellation Process",
-                                      "Customs Recordal Process",
-                                      "Regulatory Compliance",
-                                      "Regulatory Disclosure Practice",
-                                      "Regulatory Investigation",
-                                      "Insurance Regulatory Practice",
-                                      "Audit Practice",
-                                      "Real Estate Regulatory Services",
-                                      "Roadway Closing",
-                                      "Density Credit Transactions",
-                                      "Roadway Dedication",
-                                      "Real Estate Permit Review",
-                                      "Real Estate Design Review",
-                                      "Real Estate Zoning Modifications",
-                                      "Zoning Document Amendments",
-                                      "Zoning Text Amendments",
-                                      "Zoning Map Amendments",
-                                      "Real Estate Special Exception",
-                                      "Clearing Title",
-                                      "Dispute Service",
-                                      "Litigation Practice",
-                                      "Alternative Dispute Resolution Practice",
-                                      "Mediation Practice",
-                                      "Arbitration Practice",
-                                      "Domain Name Dispute Resolution Practice",
-                                      "Affidavit / Declaration Practice",
-                                      "Appellate Practice",
-                                      "Appellate Briefing Practice",
-                                      "Appellate Motions and Submissions Practice",
-                                      "Appellate Argument Practice",
-                                      "Case Assessment, Development, Administration",
-                                      "Document and File Management",
-                                      "Co-Party Coordination",
-                                      "Analysis and Strategy",
-                                      "Fact Investigation and Development",
-                                      "Invalidity Analysis Practice",
-                                      "Technical Analysis",
-                                      "Fact Witness Interview Practice",
-                                      "Infringement Analysis Practice",
-                                      "Claim Construction Practice",
-                                      "Dispute Proceeding Type",
-                                      "Investigation Practice",
-                                      "Foreign Direct Investment Review",
-                                      "Inquiry Practice",
-                                      "Examination Under Oath",
-                                      "Tax Dispute Practice",
-                                      "Tax Audit Practice",
-                                      "Administrative Dispute Proceeding Practice",
-                                      "Trade Safeguards Dispute",
-                                      "Post-Grant Review",
-                                      "Unfair Import Investigation",
-                                      "U.S. Inter Partes Review",
-                                      "Covered Business Method Review",
-                                      "Civil Court Proceeding",
-                                      "Criminal Court Proceeding",
-                                      "Transactional Practice",
-                                      "Services Agreement Practice",
-                                      "Funds Practice",
-                                      "Fund Formation Practice",
-                                      "Lease Practice",
-                                      "Employment Transactions Practice",
-                                      "Executive Compensation Practice",
-                                      "Mortgage Practice",
-                                      "Securitization Practice",
-                                      "Licensing Practice",
-                                      "Separation Agreement  Practice",
-                                      "Mergers and Acquisitions Practice",
-                                      "M&A Practice Components",
-                                      "M&A A Preliminary Matters Practice",
-                                      "M&A D Ancillary Documents Practice",
-                                      "M&A F Regulatory and Specialty Matters Practice",
-                                      "M&A F8 Tax Practice",
-                                      "M&A F7 Securities Regulatory Matters Practice",
-                                      "M&A F3 Employment, Labor and Employee Benefits Practice",
-                                      "M&A F1 Antitrust / Competition Practice",
-                                      "M&A F5 Intellectual Property and Technology Practice",
-                                      "M&A F6 Real Property Practice",
-                                      "M&A F4 Environmental Practice",
-                                      "M&A F2 Data Security / Privacy / Data Protection / Cybersecurity Practice",
-                                      "M&A K Deal Management Practice",
-                                      "M&A I Integration Matters Practice",
-                                      "M&A C Due Diligence and Disclosure Schedules Practice",
-                                      "M&A H Closing Matters Practice",
-                                      "M&A J Post-Closing Requirements, Disputes & Adjustments Practice",
-                                      "M&A E Financing Practice",
-                                      "M&A B Purchase / Merger Agreement Practice",
-                                      "M&A G Shareholder / Board Matters Practice",
-                                      "Entity Formation Practice",
-                                      "Non-Profit Formation Practice",
-                                      "Business Formation Practice",
-                                      "Trust Formation Practice",
-                                      "Joint Venture Formation Practice",
-                                      "Purchase and Sale Practice",
-                                      "Service Sales Practice",
-                                      "Financing Practice",
-                                      "Equity Financing Practice",
-                                      "Secondary Offering Practice",
-                                      "Shelf Takedown",
-                                      "Shelf Registration",
-                                      "Private Placement Practice",
-                                      "Private Investment in Public Equity Practice",
-                                      "Direct Public Offering Practice",
-                                      "Initial Public Offering Practice",
-                                      "Rights Offering Practice",
-                                      "Debt Financing Practice",
-                                      "Lending Practice",
-                                      "Asset-Based Lending Practice",
-                                      "Reserve Based Lending Practice",
-                                      "Development of Property Practice"
-                                    ]
-                                  },
-                                  "id": {
-                                    "type": "string",
-                                    "description": "IRI of the service"
-                                  },
-                                  "source": {
-                                    "type": "string",
-                                    "const": "sali"
-                                  },
-                                  "explanation": {
-                                    "type": "string",
-                                    "description": "Explanation of the classification"
-                                  },
-                                  "isPrimary": {
-                                    "type": "boolean",
-                                    "description": "Whether the classification is the primary classification for the matter"
-                                  },
-                                  "hierarchy": {
-                                    "type": "array",
-                                    "description": "The full hierarchical path from major class to this value",
-                                    "items": {
-                                      "type": "object",
-                                      "required": [
-                                        "value",
-                                        "id"
-                                      ],
-                                      "properties": {
-                                        "value": {
-                                          "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/2/properties/matter/allOf/1/properties/classifications/items/anyOf/0/properties/value"
-                                        },
-                                        "id": {
-                                          "type": "string",
-                                          "description": "IRI of the service"
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
+                                "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/3/properties/timecard/allOf/1/properties/classifications/items"
                               },
                               {
                                 "type": "object",
@@ -2563,6 +2399,847 @@
         }
       }
     },
+    "/matters/{matterId}/timecards": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/matterId"
+        }
+      ],
+      "post": {
+        "operationId": "createTimecard",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/timecard.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Timecard"
+        ],
+        "summary": "Submit a timecard for classification",
+        "description": "Submit a single timecard under the specified matter. The matter must exist prior to submission.",
+        "requestBody": {
+          "description": "Payload for creating a timecard classification request.",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "externalId",
+                      "externalMatterId",
+                      "narrative"
+                    ],
+                    "properties": {
+                      "externalId": {
+                        "type": "string",
+                        "description": "External identifier supplied by the client for this timecard."
+                      },
+                      "externalMatterId": {
+                        "type": "string",
+                        "description": "External identifier for the associated matter (client-controlled)."
+                      },
+                      "narrative": {
+                        "type": "string",
+                        "description": "Narrative describing the work that should be classified.",
+                        "minLength": 1,
+                        "maxLength": 10000
+                      },
+                      "date": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Timestamp representing when the work was performed."
+                      },
+                      "hours": {
+                        "type": "number",
+                        "format": "float",
+                        "minimum": 0,
+                        "description": "Total hours recorded on the timecard."
+                      },
+                      "players": {
+                        "type": "array",
+                        "description": "People involved in the work described by the timecard.",
+                        "maxItems": 25,
+                        "items": {
+                          "type": "object",
+                          "description": "Representation of a person associated with the timecard.",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "External identifier for the participant supplied by the client."
+                            },
+                            "uri": {
+                              "type": "string",
+                              "description": "Directory URI for the participant when available."
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "Display name of the participant."
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Role or relationship of the participant to the work performed."
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "config"
+                    ],
+                    "properties": {
+                      "config": {
+                        "description": "Timecard Product Configuration",
+                        "oneOf": [
+                          {
+                            "title": "Classify Timecard Configuration",
+                            "type": "object",
+                            "required": [
+                              "action",
+                              "dataSource"
+                            ],
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "const": "classify"
+                              },
+                              "dataSource": {
+                                "type": "string",
+                                "description": "The data source to use for the timecard classification.",
+                                "enum": [
+                                  "sali"
+                                ]
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "action",
+                          "mapping": {
+                            "classify": "#/components/schemas/ClassifyTimecardProductConfiguration"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A single timecard classification record.",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "uri",
+                        "id",
+                        "externalId",
+                        "externalMatterId",
+                        "matterUri",
+                        "narrative",
+                        "status"
+                      ],
+                      "properties": {
+                        "uri": {
+                          "type": "string",
+                          "description": "Internal URI that uniquely identifies the timecard.",
+                          "pattern": "^ti:[A-Za-z0-9-]+:[A-Za-z0-9-]+$",
+                          "examples": [
+                            "ti:matter-123:timecard-456"
+                          ]
+                        },
+                        "id": {
+                          "type": "string",
+                          "description": "Internal identifier generated by the system.",
+                          "readOnly": true
+                        },
+                        "externalId": {
+                          "type": "string",
+                          "description": "External identifier supplied by the client for this timecard."
+                        },
+                        "externalMatterId": {
+                          "type": "string",
+                          "description": "External identifier for the associated matter (client-controlled)."
+                        },
+                        "matterUri": {
+                          "type": "string",
+                          "description": "Internal URI of the associated matter.",
+                          "pattern": "^mt:[A-Za-z0-9-]+$",
+                          "examples": [
+                            "mt:matter-123"
+                          ]
+                        },
+                        "narrative": {
+                          "type": "string",
+                          "description": "Narrative describing the work that should be classified.",
+                          "minLength": 1,
+                          "maxLength": 10000
+                        },
+                        "date": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Timestamp representing when the work was performed."
+                        },
+                        "hours": {
+                          "type": "number",
+                          "format": "float",
+                          "minimum": 0,
+                          "description": "Total hours recorded on the timecard."
+                        },
+                        "players": {
+                          "type": "array",
+                          "description": "People involved in the work described by the timecard.",
+                          "maxItems": 25,
+                          "items": {
+                            "$ref": "#/paths/~1matters~1%7BmatterId%7D~1timecards/post/requestBody/content/application~1json/schema/allOf/0/properties/players/items"
+                          }
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "created",
+                            "pending",
+                            "processing",
+                            "classified",
+                            "failed",
+                            "inactive"
+                          ],
+                          "description": "Lifecycle status values for the timecard classification workflow."
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "readOnly": true,
+                          "description": "Timestamp when the timecard was created in the system."
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "readOnly": true,
+                          "description": "Timestamp when the timecard record was last updated."
+                        },
+                        "statusUpdatedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "readOnly": true,
+                          "description": "Timestamp of the most recent status transition."
+                        },
+                        "retryCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Number of classification retry attempts made for this timecard."
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "description": "Owning account identifier for internal routing.",
+                          "readOnly": true
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "classifications",
+                        "isGeneric",
+                        "isBlockBooked"
+                      ],
+                      "properties": {
+                        "classifications": {
+                          "type": "array",
+                          "description": "Classification results applied to the timecard.",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "type",
+                              "value",
+                              "source"
+                            ],
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "const": "service"
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": "SALI Service Classes and Subclasses",
+                                "enum": [
+                                  "Bankruptcy and Financial Restructuring Practice",
+                                  "Bankruptcy Claims Practice",
+                                  "Claims Filing Practice",
+                                  "Claims Objection Practice",
+                                  "Claims Review Practice",
+                                  "Reorganization Bankruptcy",
+                                  "US Chapter 13 Bankruptcy",
+                                  "US Chapter 11 Bankruptcy",
+                                  "US Chapter 11 Bankruptcy - Streamlined",
+                                  "US Chapter 11 - Small Business Debtors",
+                                  "US Chapter 12 Bankruptcy",
+                                  "Bankruptcy Budgeting Practice",
+                                  "Fee and Employment Practice",
+                                  "Fee Objection Practice",
+                                  "Fee Application Process",
+                                  "Employment Application Process",
+                                  "Employment Objection Process",
+                                  "Adversary Proceeding Practice",
+                                  "Trial Court Practice",
+                                  "Pretrial Practice",
+                                  "Discovery Practice",
+                                  "Document Collection and Production Practice",
+                                  "Identification of Documents Practice",
+                                  "Analysis of Documents Practice",
+                                  "Processing of Documents Practice",
+                                  "Presentation of Documents Practice",
+                                  "Preservation of Documents Practice",
+                                  "Collection of Documents Practice",
+                                  "Review of Documents Practice",
+                                  "Production of Documents Practice",
+                                  "Written Discovery Practice",
+                                  "Interrogatories Practice",
+                                  "Subpoena Practice",
+                                  "Subpoena Response Practice",
+                                  "Subpoena Assertion Practice",
+                                  "Requests for Admission Practice",
+                                  "Requests for Production Practice",
+                                  "Deposition Practice",
+                                  "Corporate Representative Deposition Practice",
+                                  "Expert Deposition Practice",
+                                  "Fact Deposition Practice",
+                                  "Deposition Posture",
+                                  "Observing Deposition",
+                                  "Defending Deposition",
+                                  "Taking Deposition",
+                                  "Discovery Motion Practice",
+                                  "Expert Practice",
+                                  "Physical Examination Practice",
+                                  "Expert Report Practice",
+                                  "Expert Interview Practice",
+                                  "Daubert Motion Practice",
+                                  "Pretrial Motion Practice",
+                                  "Dispositive Motion Practice",
+                                  "Injunctions, Restraining Orders, and Provisional Remedies Practice",
+                                  "Pleadings Practice",
+                                  "Post-Trial Practice",
+                                  "Post-Trial Submission Practice",
+                                  "Trial and Post-Trial Motion Practice",
+                                  "Trial Practice",
+                                  "Witness Examination Practice",
+                                  "Cross-Examination of Witness",
+                                  "Direct-Examination of Witness",
+                                  "Jury Selection / Voire Dire Practice",
+                                  "Trial Preparation Practice",
+                                  "Trial Testimony Practice",
+                                  "Asset Analysis",
+                                  "Asset Valuation Practice",
+                                  "Asset Due Diligence Practice",
+                                  "Examiner Investigation Practice",
+                                  "Asset Turnover Practice",
+                                  "Non-Litigation Recovery Practice",
+                                  "Financial Advisor Practice",
+                                  "Out-of-Court Restructuring",
+                                  "Receivership Creation",
+                                  "Assignment for the Benefit of Creditors",
+                                  "Individualized Restructuring",
+                                  "Liquidation Bankruptcy",
+                                  "US Chapter 7 Bankruptcy",
+                                  "Relief from Stay Practice",
+                                  "Automatic Stay Practice",
+                                  "Adequate Protection Practice",
+                                  "Bankruptcy Case Closure Practice",
+                                  "Insolvency Practice",
+                                  "US Chapter 15 Bankruptcy",
+                                  "Corporate Governance Analysis",
+                                  "Debt Repayment Plan Bankruptcy",
+                                  "Analysis of Entity Formation",
+                                  "Creditor Meeting and Communication Practice",
+                                  "Bankruptcy Exit Financing",
+                                  "Bankruptcy Initiation Type",
+                                  "Voluntary Bankruptcy",
+                                  "Involuntary Bankruptcy",
+                                  "Bankruptcy Motion Practice",
+                                  "US Chapter 9 Bankruptcy",
+                                  "Settlement, Demand, and Collection Practice",
+                                  "Demand Letter Practice",
+                                  "Debt Collection Practice",
+                                  "Domestication Action",
+                                  "Settlement Practice",
+                                  "Negotiation Sequence",
+                                  "Collective Bargaining Event",
+                                  "Obligation Analysis",
+                                  "Analysis of Vendors & Commercial Arrangement Considerations",
+                                  "Analysis of Critical Vendor Status",
+                                  "Analysis of Vendor Contracts",
+                                  "Analysis of Vendor Communications",
+                                  "Analysis of Utilities Considerations",
+                                  "Analysis of Securities Reporting Considerations",
+                                  "Analysis of Pre-Petition Lien Issues",
+                                  "Analysis of Financial Reports",
+                                  "Analysis of Insurance Considerations",
+                                  "Analysis of Use of Cash",
+                                  "Analysis of DIP Financing",
+                                  "Analysis of Cash Collateral",
+                                  "Analysis of Cash Management",
+                                  "Analysis of Monthly Operating Reports",
+                                  "Analysis of Cash Management Reports",
+                                  "Analysis of Pre-Petition Debt Agreements",
+                                  "Analysis of Student Loan Obligations",
+                                  "Analysis of Pre-Petition Auto Financing",
+                                  "Analysis of Pre-Petition Mortgage",
+                                  "Analysis of Dischargeability Issues",
+                                  "Analysis of Employee Benefits/Pensions",
+                                  "Analysis of Employee Retention",
+                                  "Analysis of KEIPs and KERPs",
+                                  "Analysis of Benefits Plans",
+                                  "Analysis of Severance Obligations",
+                                  "Analysis of Severance Arrangement Issues",
+                                  "Analysis of Environmental Considerations",
+                                  "Avoidance Action Practice",
+                                  "Asset Disposition Practice",
+                                  "Asset Sales Practice",
+                                  "Abandonment Practice",
+                                  "Advisory Service",
+                                  "Appropriations Practice",
+                                  "Government Appropriations Practice",
+                                  "Opinion Memo Practice",
+                                  "Manuals Practice",
+                                  "Grass Roots Organization and Management",
+                                  "Coalition Formation and Management Practice",
+                                  "Government Coalition Management",
+                                  "Strategic Communications Practice",
+                                  "Crisis Communications Practice",
+                                  "Corporate Campaigns Practice",
+                                  "Employee Rights Campaigns Practice",
+                                  "Tabletop Exercise Practice",
+                                  "Policies Practice",
+                                  "Crisis Management Practice",
+                                  "Governmental Monitoring Practice",
+                                  "Legislative Monitoring Practice",
+                                  "Judicial Branch Monitoring Practice",
+                                  "Executive Branch Monitoring Practice",
+                                  "Regulatory Services (Non-Dispute)",
+                                  "Regulatory Enforcement",
+                                  "Tax Practice",
+                                  "Use Tax Practice",
+                                  "Income Tax Practice",
+                                  "Sales Tax Practice",
+                                  "Excise Tax Practice",
+                                  "Property Tax Practice",
+                                  "Monitoring",
+                                  "International Trade Practice",
+                                  "Customs and Import Controls Practice",
+                                  "Export Controls Practice",
+                                  "Public Benefits",
+                                  "Public Housing Benefit",
+                                  "School-Based Public Benefit",
+                                  "Non-Contributory Benefit",
+                                  "Disability Public Benefit",
+                                  "In-home Supportive Service Disability Benefit",
+                                  "Assessment of Eligibility for Public Benefits",
+                                  "Old Age Public Benefits",
+                                  "Unemployment Public Benefits",
+                                  "Health Public Benefit",
+                                  "Family Health Public Benefit",
+                                  "Mother and Child Health Public Benefit",
+                                  "Pediatric Screening and Intervention Public Benefit",
+                                  "Food and Cash Public Benefit",
+                                  "Food Public Benefit",
+                                  "General Relief Benefit",
+                                  "Cash Public Benefit",
+                                  "Provider of Public Benefits",
+                                  "State-Provided Public Benefit",
+                                  "Nation-Provided Public Benefit",
+                                  "Locally Provided Public Benefit",
+                                  "Military and Veteran Benefits",
+                                  "Contributory Benefit",
+                                  "Pension Benefit",
+                                  "Estate Management Practice",
+                                  "Estate Planning Practice",
+                                  "Estate Administration Practice",
+                                  "Immigration Service",
+                                  "Government Relations",
+                                  "Legislative Drafting Practice",
+                                  "Public Comment Practice",
+                                  "Regulatory Drafting Practice",
+                                  "Lobbying",
+                                  "Disaster Relief",
+                                  "Economic Development Service",
+                                  "Regulatory Processing Service",
+                                  "Regulatory Application Service",
+                                  "Regulatory Eligibility Determination Service",
+                                  "Intellectual Property Registration Process",
+                                  "Domain Name Registration Process",
+                                  "Copyright Registration Process",
+                                  "Patent Registration Process",
+                                  "Patent Assessment Process",
+                                  "Prior Art Search Process",
+                                  "Patent Search Process",
+                                  "Plant Patent Registration",
+                                  "Design Patent Registration",
+                                  "Patent Opposition Process",
+                                  "Patent Reexamination Process",
+                                  "Utility Patent Registration",
+                                  "Trademark Registration Process",
+                                  "Trademark Opposition Process",
+                                  "Trademark Renewal Process",
+                                  "Trademark Search Process",
+                                  "Trademark Cancellation Process",
+                                  "Customs Recordal Process",
+                                  "Regulatory Compliance",
+                                  "Regulatory Disclosure Practice",
+                                  "Regulatory Investigation",
+                                  "Insurance Regulatory Practice",
+                                  "Audit Practice",
+                                  "Real Estate Regulatory Services",
+                                  "Roadway Closing",
+                                  "Density Credit Transactions",
+                                  "Roadway Dedication",
+                                  "Real Estate Permit Review",
+                                  "Real Estate Design Review",
+                                  "Real Estate Zoning Modifications",
+                                  "Zoning Document Amendments",
+                                  "Zoning Text Amendments",
+                                  "Zoning Map Amendments",
+                                  "Real Estate Special Exception",
+                                  "Clearing Title",
+                                  "Dispute Service",
+                                  "Litigation Practice",
+                                  "Alternative Dispute Resolution Practice",
+                                  "Mediation Practice",
+                                  "Arbitration Practice",
+                                  "Domain Name Dispute Resolution Practice",
+                                  "Affidavit / Declaration Practice",
+                                  "Appellate Practice",
+                                  "Appellate Briefing Practice",
+                                  "Appellate Motions and Submissions Practice",
+                                  "Appellate Argument Practice",
+                                  "Case Assessment, Development, Administration",
+                                  "Document and File Management",
+                                  "Co-Party Coordination",
+                                  "Analysis and Strategy",
+                                  "Fact Investigation and Development",
+                                  "Invalidity Analysis Practice",
+                                  "Technical Analysis",
+                                  "Fact Witness Interview Practice",
+                                  "Infringement Analysis Practice",
+                                  "Claim Construction Practice",
+                                  "Dispute Proceeding Type",
+                                  "Investigation Practice",
+                                  "Foreign Direct Investment Review",
+                                  "Inquiry Practice",
+                                  "Examination Under Oath",
+                                  "Tax Dispute Practice",
+                                  "Tax Audit Practice",
+                                  "Administrative Dispute Proceeding Practice",
+                                  "Trade Safeguards Dispute",
+                                  "Post-Grant Review",
+                                  "Unfair Import Investigation",
+                                  "U.S. Inter Partes Review",
+                                  "Covered Business Method Review",
+                                  "Civil Court Proceeding",
+                                  "Criminal Court Proceeding",
+                                  "Transactional Practice",
+                                  "Services Agreement Practice",
+                                  "Funds Practice",
+                                  "Fund Formation Practice",
+                                  "Lease Practice",
+                                  "Employment Transactions Practice",
+                                  "Executive Compensation Practice",
+                                  "Mortgage Practice",
+                                  "Securitization Practice",
+                                  "Licensing Practice",
+                                  "Separation Agreement  Practice",
+                                  "Mergers and Acquisitions Practice",
+                                  "M&A Practice Components",
+                                  "M&A A Preliminary Matters Practice",
+                                  "M&A D Ancillary Documents Practice",
+                                  "M&A F Regulatory and Specialty Matters Practice",
+                                  "M&A F8 Tax Practice",
+                                  "M&A F7 Securities Regulatory Matters Practice",
+                                  "M&A F3 Employment, Labor and Employee Benefits Practice",
+                                  "M&A F1 Antitrust / Competition Practice",
+                                  "M&A F5 Intellectual Property and Technology Practice",
+                                  "M&A F6 Real Property Practice",
+                                  "M&A F4 Environmental Practice",
+                                  "M&A F2 Data Security / Privacy / Data Protection / Cybersecurity Practice",
+                                  "M&A K Deal Management Practice",
+                                  "M&A I Integration Matters Practice",
+                                  "M&A C Due Diligence and Disclosure Schedules Practice",
+                                  "M&A H Closing Matters Practice",
+                                  "M&A J Post-Closing Requirements, Disputes & Adjustments Practice",
+                                  "M&A E Financing Practice",
+                                  "M&A B Purchase / Merger Agreement Practice",
+                                  "M&A G Shareholder / Board Matters Practice",
+                                  "Entity Formation Practice",
+                                  "Non-Profit Formation Practice",
+                                  "Business Formation Practice",
+                                  "Trust Formation Practice",
+                                  "Joint Venture Formation Practice",
+                                  "Purchase and Sale Practice",
+                                  "Service Sales Practice",
+                                  "Financing Practice",
+                                  "Equity Financing Practice",
+                                  "Secondary Offering Practice",
+                                  "Shelf Takedown",
+                                  "Shelf Registration",
+                                  "Private Placement Practice",
+                                  "Private Investment in Public Equity Practice",
+                                  "Direct Public Offering Practice",
+                                  "Initial Public Offering Practice",
+                                  "Rights Offering Practice",
+                                  "Debt Financing Practice",
+                                  "Lending Practice",
+                                  "Asset-Based Lending Practice",
+                                  "Reserve Based Lending Practice",
+                                  "Development of Property Practice"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "description": "IRI of the service"
+                              },
+                              "source": {
+                                "type": "string",
+                                "const": "sali"
+                              },
+                              "explanation": {
+                                "type": "string",
+                                "description": "Explanation of the classification"
+                              },
+                              "isPrimary": {
+                                "type": "boolean",
+                                "description": "Whether the classification is the primary classification for the matter"
+                              },
+                              "hierarchy": {
+                                "type": "array",
+                                "description": "The full hierarchical path from major class to this value",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "value",
+                                    "id"
+                                  ],
+                                  "properties": {
+                                    "value": {
+                                      "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/3/properties/timecard/allOf/1/properties/classifications/items/properties/value"
+                                    },
+                                    "id": {
+                                      "type": "string",
+                                      "description": "IRI of the service"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "isGeneric": {
+                          "type": "boolean",
+                          "description": "Narrative lacked sufficient detail and was labeled as generic."
+                        },
+                        "isBlockBooked": {
+                          "type": "boolean",
+                          "description": "Indicates that multiple distinct tasks were detected in the narrative."
+                        },
+                        "blockBookingType": {
+                          "type": "string",
+                          "enum": [
+                            "subtimed",
+                            "non-subtimed"
+                          ],
+                          "description": "Identifies whether the narrative contained explicit splits or equal allocations."
+                        },
+                        "blockBookingDetails": {
+                          "type": "object",
+                          "required": [
+                            "taskCount",
+                            "tasks"
+                          ],
+                          "properties": {
+                            "taskCount": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10,
+                              "description": "Total number of distinct tasks detected in the timecard."
+                            },
+                            "tasks": {
+                              "type": "array",
+                              "minItems": 1,
+                              "maxItems": 10,
+                              "description": "Parsed task entries derived from the narrative.",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "description"
+                                ],
+                                "properties": {
+                                  "description": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Description of the individual task extracted from the narrative."
+                                  },
+                                  "allocatedHours": {
+                                    "type": "number",
+                                    "format": "float",
+                                    "minimum": 0,
+                                    "description": "Hours allocated to the individual task."
+                                  },
+                                  "classifications": {
+                                    "type": "array",
+                                    "description": "Service classifications specific to this task.",
+                                    "items": {
+                                      "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/3/properties/timecard/allOf/1/properties/classifications/items"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "failureReason": {
+                          "type": "string",
+                          "description": "Code describing a terminal classification failure. Present when status is `failed`.\nExamples include `matter_failed` or `unclassifiable`.\n"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "404": {
+            "$ref": "#/paths/~1webhooks~1%7BwebhookId%7D/get/responses/404"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/matters/{matterId}/timecards/{timecardId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/matterId"
+        },
+        {
+          "$ref": "#/components/parameters/timecardId"
+        }
+      ],
+      "get": {
+        "operationId": "getTimecardInfo",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/timecard.read"
+            ]
+          }
+        ],
+        "tags": [
+          "Timecard"
+        ],
+        "summary": "Retrieve a timecard classification record",
+        "description": "Return the latest classification details and metadata for the requested timecard under the specified matter.",
+        "responses": {
+          "200": {
+            "$ref": "#/paths/~1matters~1%7BmatterId%7D~1timecards/post/responses/200"
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      },
+      "delete": {
+        "operationId": "deleteTimecard",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/timecard.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Timecard"
+        ],
+        "summary": "Delete a timecard",
+        "description": "Mark the timecard as inactive. Records are immutable; submit a new timecard to replace an existing one.",
+        "responses": {
+          "204": {
+            "$ref": "#/paths/~1contacts~1%7BcontactId%7D/delete/responses/204"
+          },
+          "400": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
     "/webhooks": {
       "get": {
         "operationId": "listWebhooks",
@@ -2704,11 +3381,28 @@
         },
         "responses": {
           "201": {
-            "description": "Successful response",
+            "description": "Webhook created successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/paths/~1webhooks/post/requestBody/content/application~1json/schema"
+                  "allOf": [
+                    {
+                      "$ref": "#/paths/~1webhooks/post/requestBody/content/application~1json/schema"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "secret"
+                      ],
+                      "properties": {
+                        "secret": {
+                          "type": "string",
+                          "readOnly": true,
+                          "description": "Shared secret for validating webhook signatures. Use this to verify the X-Webhook-Signature header when receiving webhook events."
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -2721,6 +3415,260 @@
           },
           "500": {
             "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "callbacks": {
+          "webhook-event": {
+            "{$request.body#/url}": {
+              "post": {
+                "summary": "Webhook Event Notification",
+                "description": "Your webhook endpoint will receive POST requests whenever subscribed events occur. Each request includes an X-Webhook-Signature header for verification. Respond with 200-299 to acknowledge receipt, or 410 to permanently disable this webhook.\n",
+                "parameters": [
+                  {
+                    "name": "X-Webhook-Signature",
+                    "in": "header",
+                    "required": true,
+                    "description": "HMAC-SHA256 signature of the request body (hex-encoded). Verify using the webhook secret.",
+                    "schema": {
+                      "type": "string",
+                      "example": "a3b5c8d1e2f4a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1"
+                    }
+                  }
+                ],
+                "requestBody": {
+                  "required": true,
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "allOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "type",
+                              "status",
+                              "timestamp"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Unique identifier for the event",
+                                "readOnly": true
+                              },
+                              "type": {
+                                "$ref": "#/components/parameters/eventTypes/schema/items",
+                                "description": "Type of the event"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "created",
+                                  "processing",
+                                  "processed",
+                                  "failed"
+                                ],
+                                "readOnly": true
+                              },
+                              "timestamp": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 formatted timestamp of when the event occurred"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "payload"
+                            ],
+                            "properties": {
+                              "payload": {
+                                "anyOf": [
+                                  {
+                                    "title": "Contact Payload",
+                                    "type": "object",
+                                    "required": [
+                                      "contact",
+                                      "changes"
+                                    ],
+                                    "properties": {
+                                      "contact": {
+                                        "$ref": "#/paths/~1contacts/post/requestBody/content/application~1json/schema/allOf/0"
+                                      },
+                                      "change": {
+                                        "type": "object",
+                                        "description": "Represents a change to a resource (contact, organization, matter, or timecard)",
+                                        "required": [
+                                          "resource",
+                                          "changedAt",
+                                          "patch"
+                                        ],
+                                        "properties": {
+                                          "resource": {
+                                            "type": "object",
+                                            "description": "Information about the resource that was changed",
+                                            "required": [
+                                              "id",
+                                              "uri",
+                                              "type"
+                                            ],
+                                            "properties": {
+                                              "id": {
+                                                "type": "string",
+                                                "description": "External identifier for the resource, if applicable",
+                                                "example": "1002"
+                                              },
+                                              "uri": {
+                                                "type": "string",
+                                                "description": "URI of the changed resource",
+                                                "example": "ct:4972299a-b7cc-59a3-a7b2-a84639b1761a"
+                                              },
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "contact",
+                                                  "organization",
+                                                  "matter",
+                                                  "timecard"
+                                                ],
+                                                "description": "Type of the changed resource"
+                                              }
+                                            }
+                                          },
+                                          "changedAt": {
+                                            "type": "string",
+                                            "format": "date-time",
+                                            "description": "Timestamp of when the change occurred"
+                                          },
+                                          "patch": {
+                                            "description": "JSON Patch describing the changes made to the resource",
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "required": [
+                                                "op",
+                                                "path"
+                                              ],
+                                              "properties": {
+                                                "op": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "add",
+                                                    "remove",
+                                                    "replace",
+                                                    "move",
+                                                    "copy",
+                                                    "test"
+                                                  ]
+                                                },
+                                                "path": {
+                                                  "type": "string",
+                                                  "description": "A JSON Pointer https://tools.ietf.org/html/rfc6901",
+                                                  "examples": [
+                                                    "/a/b/c"
+                                                  ]
+                                                },
+                                                "value": {
+                                                  "description": "The value related to the path and op. Can be any type. Required for add, replace, test"
+                                                },
+                                                "from": {
+                                                  "type": "string",
+                                                  "description": "Required for move and copy ops. A JSON Pointer https://tools.ietf.org/html/rfc6901"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "title": "Organization Payload",
+                                    "type": "object",
+                                    "required": [
+                                      "organization",
+                                      "changes"
+                                    ],
+                                    "properties": {
+                                      "organization": {
+                                        "$ref": "#/paths/~1organizations/post/requestBody/content/application~1json/schema/allOf/0"
+                                      },
+                                      "change": {
+                                        "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/0/properties/change"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "title": "Matter Payload",
+                                    "type": "object",
+                                    "required": [
+                                      "matter",
+                                      "changes"
+                                    ],
+                                    "properties": {
+                                      "matter": {
+                                        "$ref": "#/paths/~1matters~1%7BmatterId%7D/get/responses/200/content/application~1json/schema"
+                                      },
+                                      "change": {
+                                        "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/0/properties/change"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "title": "Timecard Payload",
+                                    "type": "object",
+                                    "required": [
+                                      "timecard",
+                                      "change"
+                                    ],
+                                    "properties": {
+                                      "timecard": {
+                                        "$ref": "#/paths/~1matters~1%7BmatterId%7D~1timecards/post/responses/200/content/application~1json/schema"
+                                      },
+                                      "change": {
+                                        "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/0/properties/change"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "title": "Failed Workflow Payload",
+                                    "type": "object",
+                                    "required": [
+                                      "change"
+                                    ],
+                                    "properties": {
+                                      "resourceId": {
+                                        "type": "string",
+                                        "description": "ID of the resource that failed to process. This is equivalent to the contact.id or organization.id or matter.id for the corresponding resource.",
+                                        "example": "1002"
+                                      },
+                                      "change": {
+                                        "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/0/properties/change"
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Event received and processed successfully"
+                  },
+                  "410": {
+                    "description": "Webhook endpoint is gone; webhook will be automatically disabled"
+                  },
+                  "5XX": {
+                    "description": "Server error; delivery will be retried"
+                  }
+                }
+              }
+            }
           }
         },
         "x-amazon-apigateway-integration": {
@@ -2769,7 +3717,14 @@
         ],
         "responses": {
           "200": {
-            "$ref": "#/paths/~1webhooks/post/responses/201"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/paths/~1webhooks/post/requestBody/content/application~1json/schema"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/paths/~1test/get/responses/401"
@@ -2850,7 +3805,7 @@
         },
         "responses": {
           "200": {
-            "$ref": "#/paths/~1webhooks/post/responses/201"
+            "$ref": "#/paths/~1webhooks~1%7BwebhookId%7D/get/responses/200"
           },
           "400": {
             "$ref": "#/paths/~1test/get/responses/500"
@@ -2988,200 +3943,179 @@
                     "events": {
                       "type": "array",
                       "items": {
-                        "allOf": [
-                          {
-                            "type": "object",
-                            "required": [
-                              "id",
-                              "type",
-                              "status",
-                              "timestamp"
-                            ],
-                            "properties": {
-                              "id": {
-                                "type": "string",
-                                "description": "Unique identifier for the event",
-                                "readOnly": true
-                              },
-                              "type": {
-                                "$ref": "#/components/parameters/eventTypes/schema/items",
-                                "description": "Type of the event"
-                              },
-                              "status": {
-                                "type": "string",
-                                "enum": [
-                                  "created",
-                                  "processing",
-                                  "processed",
-                                  "failed"
-                                ],
-                                "readOnly": true
-                              },
-                              "timestamp": {
-                                "type": "string",
-                                "format": "date-time",
-                                "description": "ISO 8601 formatted timestamp of when the event occurred"
-                              }
-                            }
-                          },
-                          {
-                            "type": "object",
-                            "required": [
-                              "payload"
-                            ],
-                            "properties": {
-                              "payload": {
-                                "anyOf": [
-                                  {
-                                    "title": "Contact Payload",
-                                    "type": "object",
-                                    "required": [
-                                      "contact",
-                                      "changes"
-                                    ],
-                                    "properties": {
-                                      "contact": {
-                                        "$ref": "#/paths/~1contacts/post/requestBody/content/application~1json/schema/allOf/0"
-                                      },
-                                      "change": {
-                                        "type": "object",
-                                        "description": "Represents a change to a resource (contact or organization)",
-                                        "required": [
-                                          "resource",
-                                          "changedAt",
-                                          "patch"
-                                        ],
-                                        "properties": {
-                                          "resource": {
-                                            "type": "object",
-                                            "description": "Information about the resource that was changed",
-                                            "required": [
-                                              "id",
-                                              "uri",
-                                              "type"
-                                            ],
-                                            "properties": {
-                                              "id": {
-                                                "type": "string",
-                                                "description": "External identifier for the resource, if applicable",
-                                                "example": "1002"
-                                              },
-                                              "uri": {
-                                                "type": "string",
-                                                "description": "URI of the changed resource",
-                                                "example": "ct:4972299a-b7cc-59a3-a7b2-a84639b1761a"
-                                              },
-                                              "type": {
-                                                "type": "string",
-                                                "enum": [
-                                                  "contact",
-                                                  "organization"
-                                                ],
-                                                "description": "Type of the changed resource"
-                                              }
-                                            }
-                                          },
-                                          "changedAt": {
-                                            "type": "string",
-                                            "format": "date-time",
-                                            "description": "Timestamp of when the change occurred"
-                                          },
-                                          "patch": {
-                                            "description": "JSON Patch describing the changes made to the resource",
-                                            "type": "array",
-                                            "items": {
-                                              "type": "object",
-                                              "required": [
-                                                "op",
-                                                "path"
-                                              ],
-                                              "properties": {
-                                                "op": {
-                                                  "type": "string",
-                                                  "enum": [
-                                                    "add",
-                                                    "remove",
-                                                    "replace",
-                                                    "move",
-                                                    "copy",
-                                                    "test"
-                                                  ]
-                                                },
-                                                "path": {
-                                                  "type": "string",
-                                                  "description": "A JSON Pointer https://tools.ietf.org/html/rfc6901",
-                                                  "examples": [
-                                                    "/a/b/c"
-                                                  ]
-                                                },
-                                                "value": {
-                                                  "description": "The value related to the path and op. Can be any type. Required for add, replace, test"
-                                                },
-                                                "from": {
-                                                  "type": "string",
-                                                  "description": "Required for move and copy ops. A JSON Pointer https://tools.ietf.org/html/rfc6901"
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  },
-                                  {
-                                    "title": "Organization Payload",
-                                    "type": "object",
-                                    "required": [
-                                      "organization",
-                                      "changes"
-                                    ],
-                                    "properties": {
-                                      "organization": {
-                                        "$ref": "#/paths/~1organizations/post/requestBody/content/application~1json/schema/allOf/0"
-                                      },
-                                      "change": {
-                                        "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/0/properties/change"
-                                      }
-                                    }
-                                  },
-                                  {
-                                    "title": "Matter Payload",
-                                    "type": "object",
-                                    "required": [
-                                      "matter",
-                                      "changes"
-                                    ],
-                                    "properties": {
-                                      "matter": {
-                                        "$ref": "#/paths/~1matters~1%7BmatterId%7D/get/responses/200/content/application~1json/schema"
-                                      },
-                                      "change": {
-                                        "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/0/properties/change"
-                                      }
-                                    }
-                                  },
-                                  {
-                                    "title": "Failed Workflow Payload",
-                                    "type": "object",
-                                    "required": [
-                                      "change"
-                                    ],
-                                    "properties": {
-                                      "change": {
-                                        "$ref": "#/paths/~1events/get/responses/200/content/application~1json/schema/properties/events/items/allOf/1/properties/payload/anyOf/0/properties/change"
-                                      }
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          }
-                        ]
+                        "$ref": "#/paths/~1webhooks/post/callbacks/webhook-event/%7B%24request.body%23~1url%7D/post/requestBody/content/application~1json/schema"
                       }
                     },
                     "nextPageToken": {
                       "type": "string",
                       "description": "A token that can be used for pagination to retrieve the next page of results."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/paths/~1test/get/responses/401"
+          },
+          "500": {
+            "$ref": "#/paths/~1test/get/responses/500"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "uri": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${stageVariables.ProxyFunctionName}/invocations",
+          "credentials": "arn:aws:iam::${AWS::AccountId}:role/${stageVariables.ApiGatewayInvokeLambdaRole}",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST"
+        }
+      }
+    },
+    "/quota": {
+      "get": {
+        "operationId": "getQuota",
+        "security": [
+          {
+            "oauth2": [
+              "bch.external/contact.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/contact.write"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/organization.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/organization.write"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/matter.read"
+            ]
+          },
+          {
+            "oauth2": [
+              "bch.external/matter.write"
+            ]
+          }
+        ],
+        "tags": [
+          "Quota"
+        ],
+        "summary": "Get Quota Availability",
+        "description": "Returns quota availability for all products for the project associated with the calling credentials. This provides insight into the remaining quota for each licensed product.\n",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "projectUri",
+                    "products"
+                  ],
+                  "properties": {
+                    "projectUri": {
+                      "type": "string",
+                      "description": "Project URI."
+                    },
+                    "products": {
+                      "type": "array",
+                      "description": "Quota summary per product.",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "projectUri",
+                          "productId",
+                          "totalQuantity",
+                          "usedQuantity",
+                          "quantityAvailable",
+                          "hasQuota",
+                          "activeLicenses",
+                          "validLicenses"
+                        ],
+                        "properties": {
+                          "projectUri": {
+                            "type": "string",
+                            "description": "Project URI considered for quota."
+                          },
+                          "productId": {
+                            "type": "string",
+                            "description": "The product of the file",
+                            "enum": [
+                              "clean-1",
+                              "clean-urgent",
+                              "clean-q",
+                              "quick-clean-1",
+                              "quick-extract-clean-1",
+                              "contact-insights",
+                              "extract-email-signature",
+                              "monitor-monthly",
+                              "monitor-quarterly",
+                              "entity-resolve",
+                              "entity-resolve-monitor-monthly",
+                              "entity-resolve-monitor-quarterly",
+                              "matter-classify",
+                              "timecard-classify",
+                              "matter-er"
+                            ]
+                          },
+                          "totalQuantity": {
+                            "type": "integer",
+                            "format": "int32",
+                            "minimum": 0,
+                            "description": "Aggregate licensed quantity."
+                          },
+                          "usedQuantity": {
+                            "type": "integer",
+                            "format": "int32",
+                            "minimum": 0,
+                            "description": "Aggregate units consumed."
+                          },
+                          "quantityAvailable": {
+                            "type": "integer",
+                            "format": "int32",
+                            "minimum": 0,
+                            "description": "Remaining aggregate units."
+                          },
+                          "hasQuota": {
+                            "type": "boolean",
+                            "description": "Indicates whether capacity remains."
+                          },
+                          "activeLicenses": {
+                            "type": "integer",
+                            "format": "int32",
+                            "minimum": 0,
+                            "description": "Count of active licenses contributing quota."
+                          },
+                          "validLicenses": {
+                            "type": "integer",
+                            "format": "int32",
+                            "minimum": 0,
+                            "description": "Count of valid (non-expired) licenses regardless of remaining quota."
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -3347,7 +4281,8 @@
                       "format": "int32",
                       "description": "The HTTP status code generated by the origin server for this occurrence\nof the problem.\n",
                       "minimum": 100,
-                      "exclusiveMaximum": 600,
+                      "maximum": 600,
+                      "exclusiveMaximum": true,
                       "examples": [
                         503
                       ]
@@ -3363,7 +4298,9 @@
                       "type": "string",
                       "description": "A unique identifier specific to the occurrence of the problem.\nIt may be used for troubleshooting.\n"
                     }
-                  }
+                  },
+                  "additionalProperties": true,
+                  "description": "RFC 7807 Problem Details for HTTP APIs.\n\nSome error types may include additional properties with error-specific metadata.\nCommon examples include:\n- QuotaExceededError: includes 'consumed' and 'limit' properties\n- ValidationError: includes 'errors' array with validation details\n"
                 }
               }
             }
@@ -3397,7 +4334,9 @@
               "bch.external/organization.write": "create and update organization information",
               "bch.external/organization.read": "read organization information",
               "bch.external/matter.write": "create new matter classification requests",
-              "bch.external/matter.read": "read matter classification requests"
+              "bch.external/matter.read": "read matter classification requests",
+              "bch.external/timecard.write": "create or delete timecard classification resources",
+              "bch.external/timecard.read": "read timecard classification resources"
             }
           }
         }
@@ -3438,7 +4377,8 @@
               "contact-profile-updated",
               "organization-updated",
               "workflow-failed",
-              "matter-updated"
+              "matter-updated",
+              "timecard-updated"
             ]
           }
         }
@@ -3457,6 +4397,16 @@
         "in": "path",
         "name": "matterId",
         "description": "The ID of a matter from your system",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "timecardId": {
+        "in": "path",
+        "name": "timecardId",
+        "description": "The ID of a timecard from your system",
         "required": true,
         "schema": {
           "type": "string",

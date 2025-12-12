@@ -11,13 +11,22 @@ const rl = readline.createInterface({
 
 const question = util.promisify(rl.question).bind(rl);
 
+const { CLIENT_ID: clientId, CLIENT_SECRET: clientSecret, ENVIRONMENT: environment, SCOPE: scope } = process.env;
+const client = new ExternalApiClient({ clientId, clientSecret, environment, scope });
+
 // Global defaults for common parameters
+const contactId = '1';
+const organizationId = '1';
+const matterId = '1';
+const timecardId = `timecard-${matterId}`;
+
 const globalDefaults = {
-  contactId: '1',
-  organizationId: '1',
-  matterId: '1',
+  contactId,
+  organizationId,
+  matterId,
+  timecardId,
   contactData: {
-    id: '1',
+    id: contactId,
     firstName: 'John',
     lastName: 'Doe',
     emails: [{ type: 'work', value: 'john@example.com' }],
@@ -26,18 +35,36 @@ const globalDefaults = {
     },
   },
   organizationData: {
-    id: '1',
+    id: organizationId,
     name: 'Acme Corp',
     config: {
       action: 'save',
     },
   },
   matterData: {
-    id: '1',
+    id: matterId,
     title: 'Acquisition Agreement Review',
     description:
       'Review and classification of the legal agreement for the acquisition of a manufacturing facility, including regulatory compliance and corporate restructuring implications.',
     department: 'Mergers & Acquisitions',
+    players: [
+      {
+        id: 'attorney-045',
+        name: 'Elizabeth Harmon',
+        type: 'attorney',
+      },
+    ],
+    config: {
+      action: 'classify',
+      dataSource: 'sali',
+    },
+  },
+  timecardData: {
+    externalId: timecardId,
+    externalMatterId: matterId,
+    narrative: 'Drafted and revised asset purchase agreement; analyzed representations and warranties; coordinated revisions with client and opposing counsel.',
+    date: new Date().toISOString(),
+    hours: 1.5,
     players: [
       {
         id: 'attorney-045',
@@ -56,8 +83,17 @@ const globalDefaults = {
 };
 let lastRequest = null;
 
-const { CLIENT_ID: clientId, CLIENT_SECRET: clientSecret, ENVIRONMENT: environment, SCOPE: scope } = process.env;
-const client = new ExternalApiClient({ clientId, clientSecret, environment, scope });
+function normalizeParamName(param) {
+  if (!param) return param;
+
+  // Remove block comments and inline comments that may appear in function signatures.
+  let name = param.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/g, '');
+
+  // Remove default assignment (e.g. `foo = {}` -> `foo`)
+  name = name.replace(/\s*=.*$/s, '');
+
+  return name.trim();
+}
 
 // Dynamically get all methods from the ExternalApiClient class
 const apiMethods = Object.getOwnPropertyNames(ExternalApiClient.prototype)
@@ -67,10 +103,13 @@ const apiMethods = Object.getOwnPropertyNames(ExternalApiClient.prototype)
   .map((name) => ({
     name,
     func: client[name].bind(client),
-    params: getMethodParams(client[name]).map((param) => ({
-      name: param,
-      default: globalDefaults[param],
-    })),
+    params: getMethodParams(client[name]).map((rawParam) => {
+      const param = normalizeParamName(rawParam);
+      return {
+        name: param,
+        default: globalDefaults[param],
+      };
+    }),
   }));
 
 // Function to get method parameters

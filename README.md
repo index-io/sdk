@@ -25,7 +25,7 @@ CLIENT_ID=your_client_id_here
 CLIENT_SECRET=your_client_secret_here
 
 # Optional configuration
-SCOPE=bch.external/contact.read bch.external/contact.write bch.external/organization.read bch.external/organization.write bch.external/matter.read bch.external/matter.write
+SCOPE=bch.external/contact.read bch.external/contact.write bch.external/organization.read bch.external/organization.write bch.external/matter.read bch.external/matter.write bch.external/timecard.read bch.external/timecard.write
 ```
 
 ### 2. Run the interactive demo
@@ -112,6 +112,8 @@ const client = new ExternalApiClient({
 - `bch.external/organization.write` - Create and update organizations
 - `bch.external/matter.read` - Read matter information
 - `bch.external/matter.write` - Create and classify matters
+- `bch.external/timecard.read` - Read timecard classification resources
+- `bch.external/timecard.write` - Create or delete timecard classification resources
 
 ## API Methods
 

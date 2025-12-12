@@ -3,49 +3,9 @@
  * @class
  */
 
-// Type imports
+// Types live in `src/types.d.ts` for IDE support; no runtime dependency.
 /**
- * @typedef {import('./types').ExternalContactWithProductConfig} ExternalContactWithProductConfig
- */
-/**
- * @typedef {import('./types').ExternalOrganizationWithProductConfig} ExternalOrganizationWithProductConfig
- */
-/**
- * @typedef {import('./types').ExternalMatterWithProductConfig} ExternalMatterWithProductConfig
- */
-/**
- * @typedef {import('./types').OrganizationProfileDataSources} OrganizationProfileDataSources
- */
-/**
- * @typedef {import('./types').EventType} EventType
- */
-
-/**
- * @typedef {import('./types').ExternalContact} ExternalContact
- */
-/**
- * @typedef {import('./types').ExternalOrganization} ExternalOrganization
- */
-/**
- * @typedef {import('./types').ExternalMatter} ExternalMatter
- */
-/**
- * @typedef {import('./types').EventData} EventData
- */
-/**
- * @typedef {import('./types').ExternalOrganizationProfileData} ExternalOrganizationProfileData
- */
-/**
- * @typedef {import('./types').EventsListResponse} EventsListResponse
- */
-/**
- * @typedef {import('./types').OrganizationProfilesResponse} OrganizationProfilesResponse
- */
-/**
- * @typedef {import('./types').Webhook} Webhook
- */
-/**
- * @typedef {import('./types').ExternalMatterWithClassifications} ExternalMatterWithClassifications
+ * @typedef {import('./types')} Types
  */
 
 class ExternalApiClient {
@@ -58,7 +18,7 @@ class ExternalApiClient {
   }
 
   static get validEventTypes() {
-    return ['contact-updated', 'contact-profile-updated', 'organization-updated', 'workflow-failed', 'matter-updated'];
+    return ['contact-updated', 'contact-profile-updated', 'organization-updated', 'workflow-failed', 'matter-updated', 'timecard-updated'];
   }
 
   get validScopes() {
@@ -69,6 +29,8 @@ class ExternalApiClient {
       'bch.external/organization.read',
       'bch.external/matter.write',
       'bch.external/matter.read',
+      'bch.external/timecard.write',
+      'bch.external/timecard.read',
     ];
   }
 
@@ -110,8 +72,8 @@ class ExternalApiClient {
 
   /**
    * Create a new contact
-   * @param {ExternalContactWithProductConfig} contactData - Contact information with configuration
-   * @returns {Promise<ExternalContactWithProductConfig>} Created contact data with configuration
+   * @param {Types.ExternalContactWithProductConfig} contactData - Contact information with configuration
+   * @returns {Promise<Types.ExternalContactWithProductConfig>} Created contact data with configuration
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If contactData is invalid
    */
@@ -126,7 +88,7 @@ class ExternalApiClient {
   /**
    * Get a contact by ID
    * @param {string} contactId - The ID of the contact to retrieve
-   * @returns {Promise<ExternalContactWithProductConfig>} Contact data with configuration
+   * @returns {Promise<Types.ExternalContactWithProductConfig>} Contact data with configuration
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If contactId is invalid
    */
@@ -152,9 +114,37 @@ class ExternalApiClient {
   }
 
   /**
+   * Get contact profile for a contact
+   * @param {string} contactId - The ID of the contact
+   * @returns {Promise<Object>} Contact profile data
+   * @throws {ExternalApiError} If the API request fails
+   * @throws {TypeError} If contactId is invalid
+   */
+  async getContactProfile(contactId) {
+    if (!contactId || typeof contactId !== 'string') {
+      throw new TypeError('contactId must be a non-empty string');
+    }
+    return this._makeRequest(`/contacts/${contactId}/profile`, 'GET');
+  }
+
+  /**
+   * Get raw contact profile for a contact
+   * @param {string} contactId - The ID of the contact
+   * @returns {Promise<Object>} Raw contact profile data
+   * @throws {ExternalApiError} If the API request fails
+   * @throws {TypeError} If parameters are invalid
+   */
+  async getContactProfileRaw(contactId) {
+    if (!contactId || typeof contactId !== 'string') {
+      throw new TypeError('contactId must be a non-empty string');
+    }
+    return this._makeRequest(`/contacts/${contactId}/profile/raw`, 'GET');
+  }
+
+  /**
    * Create a new organization
-   * @param {ExternalOrganizationWithProductConfig} organizationData - Organization information with configuration
-   * @returns {Promise<ExternalOrganizationWithProductConfig>} Created organization data with configuration
+   * @param {Types.ExternalOrganizationWithProductConfig} organizationData - Organization information with configuration
+   * @returns {Promise<Types.ExternalOrganizationWithProductConfig>} Created organization data with configuration
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If organizationData is invalid
    */
@@ -174,7 +164,7 @@ class ExternalApiClient {
   /**
    * Get an organization by ID
    * @param {string} organizationId - The ID of the organization to retrieve
-   * @returns {Promise<ExternalOrganizationWithProductConfig>} Organization data with configuration
+   * @returns {Promise<Types.ExternalOrganizationWithProductConfig>} Organization data with configuration
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If organizationId is invalid
    */
@@ -202,8 +192,8 @@ class ExternalApiClient {
   /**
    * Update an organization by ID
    * @param {string} organizationId - The ID of the organization to update
-   * @param {ExternalOrganizationWithProductConfig} organizationData - Organization information with configuration
-   * @returns {Promise<ExternalOrganizationWithProductConfig>} Updated organization data with configuration
+   * @param {Types.ExternalOrganizationWithProductConfig} organizationData - Organization information with configuration
+   * @returns {Promise<Types.ExternalOrganizationWithProductConfig>} Updated organization data with configuration
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If parameters are invalid
    */
@@ -226,7 +216,7 @@ class ExternalApiClient {
   /**
    * List profiles for an organization
    * @param {string} organizationId - The ID of the organization
-   * @returns {Promise<OrganizationProfilesResponse>} Organization profiles by data source
+   * @returns {Promise<Types.OrganizationProfilesResponse>} Organization profiles by data source
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If organizationId is invalid
    */
@@ -240,8 +230,8 @@ class ExternalApiClient {
   /**
    * Get organization profile for a specific data source
    * @param {string} organizationId - The ID of the organization
-   * @param {OrganizationProfileDataSources} dataSource - The data source identifier
-   * @returns {Promise<ExternalOrganizationProfileData>} Organization profile data for the specified data source
+   * @param {Types.OrganizationProfileDataSources} dataSource - The data source identifier
+   * @returns {Promise<Types.ExternalOrganizationProfileData>} Organization profile data for the specified data source
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If parameters are invalid
    */
@@ -278,7 +268,7 @@ class ExternalApiClient {
    * @param {string} organizationId - The ID of the organization
    * @param {string} referenceType - The type of reference relationship
    * @param {string} dataSource - The data source identifier
-   * @returns {Promise<ExternalOrganizationProfileData>} Parent organization profile data for the specified data source
+   * @returns {Promise<Types.ExternalOrganizationProfileData>} Parent organization profile data for the specified data source
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If parameters are invalid
    */
@@ -297,8 +287,8 @@ class ExternalApiClient {
 
   /**
    * List events filtered by type
-   * @param {EventType|EventType[]} [eventTypes] - Event type(s) to filter by
-   * @returns {Promise<EventsListResponse>} Events list with pagination support
+   * @param {Types.EventType|Types.EventType[]} [eventTypes] - Event type(s) to filter by
+   * @returns {Promise<Types.EventsListResponse>} Events list with pagination support
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If eventTypes is invalid
    */
@@ -317,7 +307,7 @@ class ExternalApiClient {
 
   /**
    * List all webhooks
-   * @returns {Promise<Webhook[]>} Array of webhook objects
+   * @returns {Promise<Types.Webhook[]>} Array of webhook objects
    * @throws {ExternalApiError} If the API request fails
    */
   async listWebhooks() {
@@ -340,8 +330,8 @@ class ExternalApiClient {
 
   /**
    * Create a new matter
-   * @param {ExternalMatterWithProductConfig} matterData - Matter information with configuration
-   * @returns {Promise<ExternalMatterWithProductConfig>} Created matter data with configuration
+   * @param {Types.ExternalMatterWithProductConfig} matterData - Matter information with configuration
+   * @returns {Promise<Types.ExternalMatterWithProductConfig>} Created matter data with configuration
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If matterData is invalid
    */
@@ -362,7 +352,7 @@ class ExternalApiClient {
   /**
    * Get a matter by ID
    * @param {string} matterId - The ID of the matter to retrieve
-   * @returns {Promise<ExternalMatterWithClassifications>} Matter data with SALI classifications
+   * @returns {Promise<Types.ExternalMatterWithClassifications>} Matter data with SALI classifications
    * @throws {ExternalApiError} If the API request fails
    * @throws {TypeError} If matterId is invalid
    */
@@ -371,6 +361,84 @@ class ExternalApiClient {
       throw new TypeError('matterId must be a non-empty string');
     }
     return this._makeRequest(`/matters/${matterId}`, 'GET');
+  }
+
+  /**
+   * Create a timecard under an existing matter.
+   * @param {string} matterId - The external identifier for the matter.
+   * @param {Object} timecardData - Timecard payload.
+   * @returns {Promise<Object>} Created timecard record.
+   * @throws {ExternalApiError} If the API request fails
+   * @throws {TypeError} If parameters are invalid
+   */
+  async createTimecard(matterId, timecardData) {
+    if (!matterId || typeof matterId !== 'string') {
+      throw new TypeError('matterId must be a non-empty string');
+    }
+    if (!timecardData || typeof timecardData !== 'object') {
+      throw new TypeError('timecardData must be an object');
+    }
+    if (!timecardData.externalId) {
+      throw new TypeError('timecardData.externalId is required');
+    }
+    if (!timecardData.narrative) {
+      throw new TypeError('timecardData.narrative is required');
+    }
+
+    // Ensure the body matches the matter scope in the path.
+    if (timecardData.externalMatterId === undefined) {
+      timecardData.externalMatterId = matterId;
+    }
+    if (timecardData.externalMatterId !== matterId) {
+      throw new TypeError('timecardData.externalMatterId must match matterId');
+    }
+
+    return this._makeRequest(`/matters/${matterId}/timecards`, 'POST', timecardData);
+  }
+
+  /**
+   * Retrieve a timecard by external IDs (scoped to the parent matter).
+   * @param {string} matterId - The external identifier for the matter.
+   * @param {string} timecardId - The external identifier for the timecard (scoped to the parent matter).
+   * @returns {Promise<Object>} Timecard record.
+   * @throws {ExternalApiError} If the API request fails
+   * @throws {TypeError} If parameters are invalid
+   */
+  async getTimecard(matterId, timecardId) {
+    if (!matterId || typeof matterId !== 'string') {
+      throw new TypeError('matterId must be a non-empty string');
+    }
+    if (!timecardId || typeof timecardId !== 'string') {
+      throw new TypeError('timecardId must be a non-empty string');
+    }
+    return this._makeRequest(`/matters/${matterId}/timecards/${timecardId}`, 'GET');
+  }
+
+  /**
+   * Delete a timecard by external IDs (scoped to the parent matter).
+   * @param {string} matterId - The external identifier for the matter.
+   * @param {string} timecardId - The external identifier for the timecard (scoped to the parent matter).
+   * @returns {Promise<string>} Empty response body (204 status)
+   * @throws {ExternalApiError} If the API request fails
+   * @throws {TypeError} If parameters are invalid
+   */
+  async deleteTimecard(matterId, timecardId) {
+    if (!matterId || typeof matterId !== 'string') {
+      throw new TypeError('matterId must be a non-empty string');
+    }
+    if (!timecardId || typeof timecardId !== 'string') {
+      throw new TypeError('timecardId must be a non-empty string');
+    }
+    return this._makeRequest(`/matters/${matterId}/timecards/${timecardId}`, 'DELETE');
+  }
+
+  /**
+   * Get quota availability for all products
+   * @returns {Promise<{projectUri: string, products: Array<{projectUri: string, productId: string, totalQuantity: number, usedQuantity: number, quantityAvailable: number, hasQuota: boolean, activeLicenses: number}>}>} Quota availability for all products
+   * @throws {ExternalApiError} If the API request fails
+   */
+  async getQuota() {
+    return this._makeRequest('/quota', 'GET');
   }
 
   /**
