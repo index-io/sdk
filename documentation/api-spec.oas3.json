@@ -161,6 +161,7 @@
                         "uniqueItems": true,
                         "items": {
                           "type": "object",
+                          "description": "Basic URL information for a contact profile",
                           "required": [
                             "type",
                             "value"
@@ -168,7 +169,6 @@
                           "properties": {
                             "type": {
                               "type": "string",
-                              "default": "other",
                               "enum": [
                                 "linkedin",
                                 "professional",
@@ -179,22 +179,6 @@
                               "type": "string",
                               "format": "uri",
                               "sanitize": "url"
-                            },
-                            "source": {
-                              "type": "object",
-                              "properties": {
-                                "name": {
-                                  "type": "string",
-                                  "enum": [
-                                    "google",
-                                    "googleai",
-                                    "contact",
-                                    "gd",
-                                    "mturk",
-                                    "ds"
-                                  ]
-                                }
-                              }
                             }
                           }
                         }
@@ -539,85 +523,13 @@
         "description": "This API endpoint fetches the data of the profile for a given Contact ID.\n",
         "responses": {
           "200": {
-            "description": "Successful profile response",
+            "description": "Successful raw profile response",
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "The data for a specific contact profile.",
-                  "oneOf": [
-                    {
-                      "title": "LinkedIn Data",
-                      "type": "object",
-                      "description": "Linkedin contact data",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "description": "The ID of the contact"
-                        },
-                        "firstName": {
-                          "type": "string",
-                          "description": "The first name of the contact"
-                        },
-                        "lastName": {
-                          "type": "string",
-                          "description": "The last name of the contact"
-                        },
-                        "middleName": {
-                          "type": "string",
-                          "description": "The middle name of the contact"
-                        },
-                        "displayName": {
-                          "type": "string",
-                          "description": "The display name of the contact"
-                        },
-                        "tagline": {
-                          "type": "string",
-                          "description": "The tagline of the contact"
-                        },
-                        "aboutme": {
-                          "type": "string",
-                          "description": "The about me of the contact"
-                        },
-                        "location": {
-                          "type": "string",
-                          "description": "The location of the contact"
-                        },
-                        "urls": {
-                          "type": "array",
-                          "description": "The URLs of the contact",
-                          "items": {
-                            "type": "object"
-                          }
-                        },
-                        "emails": {
-                          "type": "array",
-                          "description": "The emails of the contact",
-                          "items": {
-                            "type": "object"
-                          }
-                        },
-                        "positions": {
-                          "type": "array",
-                          "description": "The positions of the contact",
-                          "items": {
-                            "type": "object"
-                          }
-                        },
-                        "education": {
-                          "type": "array",
-                          "items": {
-                            "type": "object"
-                          }
-                        },
-                        "skills": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
-                      }
-                    }
-                  ]
+                  "type": "object",
+                  "description": "Raw contact profile document data from the source system.",
+                  "additionalProperties": true
                 }
               }
             }
@@ -668,7 +580,280 @@
         "description": "This API endpoint fetches the data of the profile for a given Contact ID in raw format.\n",
         "responses": {
           "200": {
-            "$ref": "#/paths/~1contacts~1%7BcontactId%7D~1profile/get/responses/200"
+            "description": "Successful profile response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The data for a specific contact profile.",
+                  "oneOf": [
+                    {
+                      "title": "LinkedIn Data",
+                      "type": "object",
+                      "description": "Linkedin contact data",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "The ID of the contact"
+                        },
+                        "uri": {
+                          "type": "string",
+                          "description": "The internal URI for the contact profile"
+                        },
+                        "firstName": {
+                          "type": "string",
+                          "description": "The first name of the contact"
+                        },
+                        "lastName": {
+                          "type": "string",
+                          "description": "The last name of the contact"
+                        },
+                        "middleName": {
+                          "type": "string",
+                          "description": "The middle name of the contact"
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "description": "The display name of the contact"
+                        },
+                        "tagline": {
+                          "type": "string",
+                          "description": "The tagline of the contact"
+                        },
+                        "aboutme": {
+                          "type": "string",
+                          "description": "The about me of the contact"
+                        },
+                        "location": {
+                          "description": "The location of the contact",
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "A simple id to uniquely reference the location"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "Human readable name of location"
+                            },
+                            "countryCode": {
+                              "type": "string"
+                            },
+                            "geo": {
+                              "type": "object",
+                              "description": "GeoJSON point data for a contact location",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "Point"
+                                },
+                                "coordinates": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number",
+                                    "format": "float"
+                                  },
+                                  "description": "Longitude/latitude coordinates for the location",
+                                  "minItems": 2,
+                                  "maxItems": 3
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "urls": {
+                          "type": "array",
+                          "description": "The URLs of the contact",
+                          "items": {
+                            "$ref": "#/paths/~1contacts/post/responses/200/content/application~1json/schema/allOf/0/properties/urls/items"
+                          }
+                        },
+                        "emails": {
+                          "type": "array",
+                          "description": "The emails of the contact",
+                          "items": {
+                            "$ref": "#/paths/~1contacts/post/responses/200/content/application~1json/schema/allOf/0/properties/emails/items"
+                          }
+                        },
+                        "positions": {
+                          "type": "array",
+                          "description": "The positions of the contact",
+                          "items": {
+                            "type": "object",
+                            "description": "The (current and past) positions the person holds",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "A simple id to uniquely reference the entry"
+                              },
+                              "title": {
+                                "type": "string",
+                                "description": "The title for this position",
+                                "examples": [
+                                  "CEO"
+                                ]
+                              },
+                              "department": {
+                                "type": "string",
+                                "description": "The department for this position",
+                                "examples": [
+                                  "Sales"
+                                ]
+                              },
+                              "summary": {
+                                "type": "string",
+                                "description": "A summary of the position"
+                              },
+                              "startDate": {
+                                "$ref": "#/paths/~1contacts~1%7BcontactId%7D~1profile~1raw/get/responses/200/content/application~1json/schema/oneOf/0/properties/positions/items/properties/endDate",
+                                "description": "The start date for this position"
+                              },
+                              "endDate": {
+                                "description": "The end date for this position",
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "isCurrent"
+                                    ],
+                                    "properties": {
+                                      "isCurrent": {
+                                        "type": "boolean",
+                                        "description": "A boolean value indicating whether this date is current",
+                                        "const": true
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "year": {
+                                        "type": "number",
+                                        "format": "int32",
+                                        "minimum": 1
+                                      },
+                                      "month": {
+                                        "type": "number",
+                                        "format": "int32",
+                                        "minimum": 1,
+                                        "maximum": 12
+                                      },
+                                      "day": {
+                                        "type": "number",
+                                        "format": "int32",
+                                        "minimum": 1,
+                                        "maximum": 31
+                                      },
+                                      "isCurrent": {
+                                        "type": "boolean",
+                                        "description": "A boolean value indicating whether this date is current"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "employmentType": {
+                                "type": "string",
+                                "examples": [
+                                  "part-time",
+                                  "full-time",
+                                  "self-employed",
+                                  "contract",
+                                  "internship",
+                                  "apprenticeship",
+                                  "freelance",
+                                  "seasonal",
+                                  "other"
+                                ]
+                              },
+                              "company": {
+                                "type": "object",
+                                "description": "Organization information for a contact profile",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "readOnly": true
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "logo": {
+                                    "type": "string"
+                                  },
+                                  "linkedinUrl": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "sanitize": "url"
+                                  }
+                                }
+                              },
+                              "location": {
+                                "type": "object",
+                                "description": "Position location information",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "description": "The name of the location"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "education": {
+                          "type": "array",
+                          "description": "The education entries published",
+                          "items": {
+                            "type": "object",
+                            "description": "The education entries published",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "A simple id to uniquely reference the entry"
+                              },
+                              "activities": {
+                                "type": "string",
+                                "description": "Free form text of activities in school"
+                              },
+                              "degree": {
+                                "type": "string",
+                                "description": "The degree earned"
+                              },
+                              "major": {
+                                "type": "string",
+                                "description": "The major or field of study"
+                              },
+                              "company": {
+                                "$ref": "#/paths/~1contacts~1%7BcontactId%7D~1profile~1raw/get/responses/200/content/application~1json/schema/oneOf/0/properties/positions/items/properties/company"
+                              },
+                              "university": {
+                                "$ref": "#/paths/~1contacts~1%7BcontactId%7D~1profile~1raw/get/responses/200/content/application~1json/schema/oneOf/0/properties/positions/items/properties/company"
+                              }
+                            }
+                          }
+                        },
+                        "skills": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "version": {
+                          "type": "number",
+                          "format": "int32",
+                          "description": "Version of the profile"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "The last time the profile data was updated"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/paths/~1test/get/responses/500"
@@ -792,7 +977,29 @@
                             },
                             "data": {
                               "type": "object",
-                              "description": "Supplementary data of the reference.  For example, the relationship to the parent company."
+                              "description": "Supplementary data of the reference, including entity resolution metadata.",
+                              "properties": {
+                                "matchType": {
+                                  "type": "string",
+                                  "description": "The match type classification from entity resolution indicating the relationship between the input and matched entity.",
+                                  "enum": [
+                                    "exact",
+                                    "related",
+                                    "none"
+                                  ]
+                                },
+                                "explanation": {
+                                  "type": "string",
+                                  "description": "Human-readable explanation of the entity resolution match decision, including reasoning and key factors."
+                                },
+                                "confidence": {
+                                  "type": "number",
+                                  "format": "float",
+                                  "minimum": 0,
+                                  "maximum": 1,
+                                  "description": "Confidence score from entity resolution (0.0 to 1.0) indicating how certain the match is."
+                                }
+                              }
                             },
                             "dataSource": {
                               "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles~1%7BdataSource%7D/parameters/1/schema"
@@ -1215,6 +1422,9 @@
                           "examples": [
                             "Manufacturing"
                           ]
+                        },
+                        "metadata": {
+                          "$ref": "#/paths/~1organizations~1%7BorganizationId%7D~1profiles/get/responses/200/content/application~1json/schema/properties/sp/properties/metadata"
                         }
                       }
                     },
@@ -1257,6 +1467,7 @@
                           "uniqueItems": true,
                           "items": {
                             "type": "object",
+                            "description": "Basic URL information for an organization profile",
                             "required": [
                               "type",
                               "value"
@@ -1368,6 +1579,32 @@
                               "value": {
                                 "type": "string"
                               }
+                            }
+                          }
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "description": "Metadata about the profile from the entity resolution process.",
+                          "properties": {
+                            "matchType": {
+                              "type": "string",
+                              "description": "The match type classification from entity resolution indicating the relationship between the input and matched entity.",
+                              "enum": [
+                                "exact",
+                                "related",
+                                "none"
+                              ]
+                            },
+                            "explanation": {
+                              "type": "string",
+                              "description": "Human-readable explanation of the entity resolution match decision, including reasoning and key factors."
+                            },
+                            "confidence": {
+                              "type": "number",
+                              "format": "float",
+                              "minimum": 0,
+                              "maximum": 1,
+                              "description": "Confidence score from entity resolution (0.0 to 1.0) indicating how certain the match is."
                             }
                           }
                         }

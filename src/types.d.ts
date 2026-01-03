@@ -572,14 +572,7 @@ export interface operations {
                     readonly uri?: string;
                     /** @description List of relevant URLs associated with the contact (e.g., LinkedIn profile) */
                     urls?: {
-                        source?: {
-                            /** @enum {string} */
-                            name?: "google" | "googleai" | "contact" | "gd" | "mturk" | "ds";
-                        };
-                        /**
-                         * @default other
-                         * @enum {string}
-                         */
+                        /** @enum {string} */
                         type: "linkedin" | "professional" | "other";
                         /** Format: uri */
                         value: string;
@@ -710,37 +703,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful profile response */
+            /** @description Successful raw profile response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description The about me of the contact */
-                        aboutme?: string;
-                        /** @description The display name of the contact */
-                        displayName?: string;
-                        education?: Record<string, never>[];
-                        /** @description The emails of the contact */
-                        emails?: Record<string, never>[];
-                        /** @description The first name of the contact */
-                        firstName?: string;
-                        /** @description The ID of the contact */
-                        id?: string;
-                        /** @description The last name of the contact */
-                        lastName?: string;
-                        /** @description The location of the contact */
-                        location?: string;
-                        /** @description The middle name of the contact */
-                        middleName?: string;
-                        /** @description The positions of the contact */
-                        positions?: Record<string, never>[];
-                        skills?: string[];
-                        /** @description The tagline of the contact */
-                        tagline?: string;
-                        /** @description The URLs of the contact */
-                        urls?: Record<string, never>[];
+                        [key: string]: unknown;
                     };
                 };
             };
@@ -761,7 +731,119 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: paths["/contacts/{contactId}/profile"]["get"]["responses"]["200"];
+            /** @description Successful profile response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The about me of the contact */
+                        aboutme?: string;
+                        /** @description The display name of the contact */
+                        displayName?: string;
+                        /** @description The education entries published */
+                        education?: {
+                            /** @description Free form text of activities in school */
+                            activities?: string;
+                            company?: paths["/contacts/{contactId}/profile/raw"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["oneOf"]["0"]["positions"]["items"]["company"];
+                            /** @description The degree earned */
+                            degree?: string;
+                            /** @description A simple id to uniquely reference the entry */
+                            id?: string;
+                            /** @description The major or field of study */
+                            major?: string;
+                            university?: paths["/contacts/{contactId}/profile/raw"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["oneOf"]["0"]["positions"]["items"]["company"];
+                        }[];
+                        /** @description The emails of the contact */
+                        emails?: paths["/contacts"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]["allOf"]["0"]["emails"]["items"][];
+                        /** @description The first name of the contact */
+                        firstName?: string;
+                        /** @description The ID of the contact */
+                        id?: string;
+                        /** @description The last name of the contact */
+                        lastName?: string;
+                        /** @description The location of the contact */
+                        location?: {
+                            countryCode?: string;
+                            /** @description GeoJSON point data for a contact location */
+                            geo?: {
+                                /** @description Longitude/latitude coordinates for the location */
+                                coordinates?: number[];
+                                /** @constant */
+                                type?: "Point";
+                            };
+                            /** @description A simple id to uniquely reference the location */
+                            readonly id?: string;
+                            /** @description Human readable name of location */
+                            name?: string;
+                        };
+                        /** @description The middle name of the contact */
+                        middleName?: string;
+                        /** @description The positions of the contact */
+                        positions?: {
+                            /** @description Organization information for a contact profile */
+                            company?: {
+                                readonly id?: string;
+                                /** Format: uri */
+                                linkedinUrl?: string;
+                                logo?: string;
+                                name?: string;
+                            };
+                            /** @description The department for this position */
+                            department?: string;
+                            employmentType?: string;
+                            /** @description The end date for this position */
+                            endDate?: {
+                                /**
+                                 * @description A boolean value indicating whether this date is current
+                                 * @constant
+                                 */
+                                isCurrent: true;
+                            } | {
+                                /** Format: int32 */
+                                day?: number;
+                                /** @description A boolean value indicating whether this date is current */
+                                isCurrent?: boolean;
+                                /** Format: int32 */
+                                month?: number;
+                                /** Format: int32 */
+                                year?: number;
+                            };
+                            /** @description A simple id to uniquely reference the entry */
+                            id?: string;
+                            /** @description Position location information */
+                            location?: {
+                                /** @description The name of the location */
+                                name?: string;
+                            };
+                            /** @description The start date for this position */
+                            startDate?: paths["/contacts/{contactId}/profile/raw"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["oneOf"]["0"]["positions"]["items"]["endDate"];
+                            /** @description A summary of the position */
+                            summary?: string;
+                            /** @description The title for this position */
+                            title?: string;
+                        }[];
+                        skills?: string[];
+                        /** @description The tagline of the contact */
+                        tagline?: string;
+                        /**
+                         * Format: date-time
+                         * @description The last time the profile data was updated
+                         */
+                        updatedAt?: string;
+                        /** @description The internal URI for the contact profile */
+                        uri?: string;
+                        /** @description The URLs of the contact */
+                        urls?: paths["/contacts"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]["allOf"]["0"]["urls"]["items"][];
+                        /**
+                         * Format: int32
+                         * @description Version of the profile
+                         */
+                        version?: number;
+                    };
+                };
+            };
             400: paths["/test"]["get"]["responses"]["500"];
             401: paths["/test"]["get"]["responses"]["401"];
             500: paths["/test"]["get"]["responses"]["500"];
@@ -1166,8 +1248,21 @@ export interface operations {
                     name: string;
                     /** @description An array of references to profiles related to the Organization (e.g. an S&P Profile) */
                     readonly profiles?: {
-                        /** @description Supplementary data of the reference.  For example, the relationship to the parent company. */
-                        data?: Record<string, never>;
+                        /** @description Supplementary data of the reference, including entity resolution metadata. */
+                        data?: {
+                            /**
+                             * Format: float
+                             * @description Confidence score from entity resolution (0.0 to 1.0) indicating how certain the match is.
+                             */
+                            confidence?: number;
+                            /** @description Human-readable explanation of the entity resolution match decision, including reasoning and key factors. */
+                            explanation?: string;
+                            /**
+                             * @description The match type classification from entity resolution indicating the relationship between the input and matched entity.
+                             * @enum {string}
+                             */
+                            matchType?: "exact" | "related" | "none";
+                        };
                         dataSource: paths["/organizations/{organizationId}/profiles/{dataSource}"]["parameters"]["1"]["schema"];
                         /** @description The ID of the entity, e.g. a DUNS number */
                         id: string;
@@ -1418,6 +1513,7 @@ export interface operations {
                             /** @description The primary industry of the company */
                             industry?: string;
                             locations?: paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["sp"]["locations"]["items"][];
+                            metadata?: paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["sp"]["metadata"];
                             name?: string;
                             /** @description The revenue of the company in the specified currency */
                             revenue?: {
@@ -1510,6 +1606,21 @@ export interface operations {
                                 id?: string;
                                 name?: string;
                             }[];
+                            /** @description Metadata about the profile from the entity resolution process. */
+                            metadata?: {
+                                /**
+                                 * Format: float
+                                 * @description Confidence score from entity resolution (0.0 to 1.0) indicating how certain the match is.
+                                 */
+                                confidence?: number;
+                                /** @description Human-readable explanation of the entity resolution match decision, including reasoning and key factors. */
+                                explanation?: string;
+                                /**
+                                 * @description The match type classification from entity resolution indicating the relationship between the input and matched entity.
+                                 * @enum {string}
+                                 */
+                                matchType?: "exact" | "related" | "none";
+                            };
                             monthFounded?: number;
                             name?: string;
                             officeFaxValue?: string;
