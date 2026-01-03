@@ -3,6 +3,8 @@
  * @class
  */
 
+const ExternalApiError = require('./ExternalApiError');
+
 // Types live in `src/types.d.ts` for IDE support; no runtime dependency.
 /**
  * @typedef {import('./types')} Types
@@ -482,7 +484,7 @@ class ExternalApiClient {
           options.body = JSON.stringify(bodyOrParams);
         } else {
           // Remove undefined parameters
-          const definedParams = Object.fromEntries(Object.entries(bodyOrParams).filter(([_, value]) => value !== undefined));
+          const definedParams = Object.fromEntries(Object.entries(bodyOrParams).filter(([, value]) => value !== undefined));
           url.search = new URLSearchParams(definedParams).toString();
         }
       }
@@ -542,16 +544,6 @@ class ExternalApiClient {
     this._token = `${body.token_type} ${body.access_token}`;
     this._tokenExpiration = Date.now() + body.expires_in * 1000;
     return this._token;
-  }
-}
-
-// Add a custom error class at the top of the file
-class ExternalApiError extends Error {
-  constructor(message, statusCode, responseBody) {
-    super(message);
-    this.name = 'ExternalApiError';
-    this.statusCode = statusCode;
-    this.responseBody = responseBody;
   }
 }
 

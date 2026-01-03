@@ -181,12 +181,12 @@ async function promptForParams(params) {
       } else {
         values.push(evaluatedInput);
       }
-    } catch (e) {
+    } catch {
       try {
         // If JavaScript eval fails, try parsing as JSON
         const jsonInput = JSON.parse(input);
         values.push(jsonInput);
-      } catch (jsonError) {
+      } catch {
         // If both fail, use the input as a plain string
         console.log('Warning: Could not parse as object, using as plain string');
         values.push(input);
