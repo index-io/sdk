@@ -4,7 +4,7 @@
   "description": "API Documentation and SDK",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Use repo root npm run lint\" && exit 0"
   },
   "repository": {
     "type": "git",

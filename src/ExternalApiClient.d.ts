@@ -74,6 +74,5 @@ declare class ExternalApiClient {
   testAuthentication(): Promise<{ message?: string }>;
 }
 
-export = ExternalApiClient;
-
+export default ExternalApiClient;
 
