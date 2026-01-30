@@ -554,6 +554,18 @@ export interface operations {
                     jobTitle?: string;
                     /** @description The contact's last name */
                     lastName?: string;
+                    /**
+                     * Format: float
+                     * @description Confidence score from person matching (0.0 to 1.0) indicating how certain the match is.
+                     */
+                    readonly matchConfidence?: number;
+                    /** @description Human-readable explanation of the person match decision, including reasoning and key factors. */
+                    readonly matchExplanation?: string;
+                    /**
+                     * @description The match type classification from person matching indicating the relationship between the contact and matched LinkedIn profile.
+                     * @enum {string}
+                     */
+                    readonly matchType?: "same_person" | "position_match" | "different_person" | "tagline" | "unknown";
                     /** @description The contact's middle name, if any */
                     middleName?: string;
                     /** @description The organization the contact is associated with */
@@ -1233,7 +1245,7 @@ export interface operations {
                     /** @description Alternative names or aliases for the organization */
                     alternateNames?: string[];
                     /**
-                     * @description The type of entity this organization represents.  It will be provided by the ER process.
+                     * @description The type of entity this organization represents. It will be provided by the ER process.
                      * @enum {string}
                      */
                     readonly entityType?: "organization" | "person" | "other" | "unknown";
@@ -1244,6 +1256,18 @@ export interface operations {
                     id: string;
                     /** @description An array of the organization's locations */
                     locations?: paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["sp"]["locations"]["items"][];
+                    /**
+                     * Format: float
+                     * @description Confidence score from entity resolution (0.0 to 1.0) indicating how certain the match is.
+                     */
+                    readonly matchConfidence?: number;
+                    /** @description Human-readable explanation of the entity resolution match decision, including reasoning and key factors. */
+                    readonly matchExplanation?: string;
+                    /**
+                     * @description The match type classification from entity resolution indicating the relationship between the input and matched entity.
+                     * @enum {string}
+                     */
+                    readonly matchType?: "exact" | "related" | "none";
                     /** @description The primary name of the organization */
                     name: string;
                     /** @description An array of references to profiles related to the Organization (e.g. an S&P Profile) */

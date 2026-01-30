@@ -266,6 +266,31 @@
                           "failed",
                           "inactive"
                         ]
+                      },
+                      "matchType": {
+                        "type": "string",
+                        "description": "The match type classification from person matching indicating the relationship between the contact and matched LinkedIn profile.",
+                        "readOnly": true,
+                        "enum": [
+                          "same_person",
+                          "position_match",
+                          "different_person",
+                          "tagline",
+                          "unknown"
+                        ]
+                      },
+                      "matchExplanation": {
+                        "type": "string",
+                        "description": "Human-readable explanation of the person match decision, including reasoning and key factors.",
+                        "readOnly": true
+                      },
+                      "matchConfidence": {
+                        "type": "number",
+                        "format": "float",
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "Confidence score from person matching (0.0 to 1.0) indicating how certain the match is.",
+                        "readOnly": true
                       }
                     }
                   },
@@ -954,7 +979,7 @@
                       },
                       "entityType": {
                         "type": "string",
-                        "description": "The type of entity this organization represents.  It will be provided by the ER process.",
+                        "description": "The type of entity this organization represents. It will be provided by the ER process.",
                         "readOnly": true,
                         "enum": [
                           "organization",
@@ -962,6 +987,29 @@
                           "other",
                           "unknown"
                         ]
+                      },
+                      "matchType": {
+                        "type": "string",
+                        "description": "The match type classification from entity resolution indicating the relationship between the input and matched entity.",
+                        "readOnly": true,
+                        "enum": [
+                          "exact",
+                          "related",
+                          "none"
+                        ]
+                      },
+                      "matchExplanation": {
+                        "type": "string",
+                        "description": "Human-readable explanation of the entity resolution match decision, including reasoning and key factors.",
+                        "readOnly": true
+                      },
+                      "matchConfidence": {
+                        "type": "number",
+                        "format": "float",
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "Confidence score from entity resolution (0.0 to 1.0) indicating how certain the match is.",
+                        "readOnly": true
                       },
                       "urls": {
                         "type": "array",
