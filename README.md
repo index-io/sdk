@@ -37,7 +37,7 @@ node src/demo/interactiveCLI.js
 The interactive CLI will:
 - Show all available API methods
 - Provide reasonable defaults for testing
-- Let you input custom parameters as JSON or JavaScript objects
+- Let you input custom parameters as JSON values or plain strings
 - Display formatted responses
 - Allow you to repeat the last request easily
 

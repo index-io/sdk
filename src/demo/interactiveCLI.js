@@ -163,7 +163,7 @@ async function promptForParams(params) {
     console.log(`\nParameter: ${param.name}`);
     console.log(`Default value: ${displayDefault}`);
 
-    const input = await question(`Enter value for ${param.name}\n` + `(Press Enter for default, or enter valid JavaScript/JSON)\n> `);
+    const input = await question(`Enter value for ${param.name}\n` + `(Press Enter for default, or enter valid JSON)\n> `);
 
     if (!input.trim()) {
       values.push(defaultValue);
@@ -171,26 +171,17 @@ async function promptForParams(params) {
     }
 
     try {
-      // Try to evaluate the input as JavaScript
-      // Note: Using Function constructor for safer evaluation
-      const evaluatedInput = new Function(`return ${input}`)();
+      const jsonInput = JSON.parse(input);
 
       // Convert to string if the parameter name contains 'Id' and the value is a number
-      if (param.name.toLowerCase().includes('id') && typeof evaluatedInput === 'number') {
-        values.push(String(evaluatedInput));
+      if (param.name.toLowerCase().includes('id') && typeof jsonInput === 'number') {
+        values.push(String(jsonInput));
       } else {
-        values.push(evaluatedInput);
+        values.push(jsonInput);
       }
     } catch {
-      try {
-        // If JavaScript eval fails, try parsing as JSON
-        const jsonInput = JSON.parse(input);
-        values.push(jsonInput);
-      } catch {
-        // If both fail, use the input as a plain string
-        console.log('Warning: Could not parse as object, using as plain string');
-        values.push(input);
-      }
+      // If JSON parse fails, use the input as a plain string
+      values.push(input);
     }
   }
   return values;
