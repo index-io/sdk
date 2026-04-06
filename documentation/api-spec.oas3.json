@@ -200,7 +200,16 @@
                             "type": "string",
                             "description": "State/Region/Province",
                             "examples": [
-                              "CA"
+                              "California"
+                            ]
+                          },
+                          "addressLevel1Code": {
+                            "type": "string",
+                            "description": "State/Region/Province abbreviation code",
+                            "examples": [
+                              "CA",
+                              "NY",
+                              "ON"
                             ]
                           },
                           "city": {
@@ -4355,13 +4364,20 @@
                             "type": "integer",
                             "format": "int32",
                             "minimum": 0,
-                            "description": "Aggregate units consumed."
+                            "description": "Aggregate units consumed (includes adjustments)."
                           },
                           "quantityAvailable": {
                             "type": "integer",
                             "format": "int32",
                             "minimum": 0,
                             "description": "Remaining aggregate units."
+                          },
+                          "governedQuantity": {
+                            "type": "integer",
+                            "format": "int32",
+                            "minimum": 0,
+                            "nullable": true,
+                            "description": "Aggregate governed quantity cap across licenses, or null if no licenses have a governed quantity."
                           },
                           "hasQuota": {
                             "type": "boolean",
