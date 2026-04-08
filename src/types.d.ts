@@ -524,6 +524,8 @@ export interface operations {
                     address?: {
                         /** @description State/Region/Province */
                         addressLevel1?: string;
+                        /** @description State/Region/Province abbreviation code */
+                        addressLevel1Code?: string;
                         addressLines?: string[];
                         /** @description City Name */
                         city?: string;
@@ -1731,6 +1733,11 @@ export interface operations {
                              * @description Count of active licenses contributing quota.
                              */
                             activeLicenses: number;
+                            /**
+                             * Format: int32
+                             * @description Aggregate governed quantity cap across licenses, or null if no licenses have a governed quantity.
+                             */
+                            governedQuantity?: number | null;
                             /** @description Indicates whether capacity remains. */
                             hasQuota: boolean;
                             /**
@@ -1752,7 +1759,7 @@ export interface operations {
                             totalQuantity: number;
                             /**
                              * Format: int32
-                             * @description Aggregate units consumed.
+                             * @description Aggregate units consumed (includes adjustments).
                              */
                             usedQuantity: number;
                             /**
