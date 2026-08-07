@@ -236,7 +236,7 @@ const contactEvents = await client.listEvents('contact-updated');
 const events = await client.listEvents(['contact-updated', 'organization-updated']);
 ```
 
-**Event Types**: `contact-updated`, `contact-profile-updated`, `organization-updated`, `workflow-failed`, `matter-updated`
+**Event Types**: `contact-updated`, `contact-profile-updated`, `organization-updated`, `matter-updated`, `timecard-updated`, `workflow-failed`
 
 #### Webhook Management
 ```javascript

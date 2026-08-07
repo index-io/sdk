@@ -174,7 +174,12 @@ export interface paths {
         get: operations["getMatter"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a matter and its associated timecards
+         * @description Delete a matter for a given ID. All timecards associated with this matter will also be deleted automatically.
+         *
+         */
+        delete: operations["deleteMatter"];
         options?: never;
         head?: never;
         patch?: never;
@@ -224,7 +229,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a timecard
-         * @description Mark the timecard as inactive. Records are immutable; submit a new timecard to replace an existing one.
+         * @description Permanently delete the timecard record. Records are immutable; submit a new timecard to replace an existing one. No webhook is emitted for the delete itself.
          */
         delete: operations["deleteTimecard"];
         options?: never;
@@ -302,6 +307,7 @@ export interface paths {
         /**
          * Get Organization Profiles for the Global Operating, Financial, and Related Entity Parents of the Organization with a given ID
          * @description This API endpoint fetches the Profiles for a given Organization ID.  The Global Ultimate is the ultimate "operating" parent. The Global Financial Ultimate is the ultimate "financial" parent and will roll up higher than the Global Ultimate when the parent is a financial entity. The Global Related Entity rolls up the highest and will include affiliates that may not have direct ownership but is useful for clustering.
+         *     Corporate hierarchy is separately licensed. Accounts without it receive `403` for every value of `referenceType` — including `parent` — rather than an empty result, so a missing parent is never ambiguous. `404` means the Organization ID itself is unknown.
          *
          */
         get: operations["listParentOrganizationProfiles"];
@@ -330,6 +336,7 @@ export interface paths {
         /**
          * Get Organization Profile Data for a given Data Source and Parent ID
          * @description This API endpoint fetches the data of the profile for a given Organization ID, Parent ID and Data Source.
+         *     Corporate hierarchy is separately licensed. Accounts without it receive `403` for every value of `referenceType` — including `parent` — rather than the `404` an absent profile or unknown Organization ID returns, so a missing parent is never ambiguous.
          *
          */
         get: operations["getParentOrganizationProfileForDataSource"];
@@ -598,7 +605,7 @@ export interface operations {
                     workStatus?: "employed" | "self-employed" | "between-jobs" | "in-school" | "retired" | "deceased";
                 } & {
                     /** @description Contact Product Configuration */
-                    config?: {
+                    config?: (paths["/matters/{matterId}/timecards"]["post"]["requestBody"]["content"]["application/json"]["schema"]["allOf"]["1"]["config"]["oneOf"]["0"]["allOf"]["0"] & {
                         /** @constant */
                         action: "clean";
                         /**
@@ -607,10 +614,10 @@ export interface operations {
                          * @enum {string}
                          */
                         frequency?: "quarterly" | "monthly" | "none";
-                    } | {
+                    }) | (paths["/matters/{matterId}/timecards"]["post"]["requestBody"]["content"]["application/json"]["schema"]["allOf"]["1"]["config"]["oneOf"]["0"]["allOf"]["0"] & {
                         /** @constant */
                         action: "save";
-                    };
+                    });
                 };
             };
         };
@@ -692,14 +699,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Deleted */
-            204: {
-                headers: {
-                    "Access-Control-Allow-Origin"?: string;
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
+            204: paths["/matters/{matterId}"]["delete"]["responses"]["204"];
             401: paths["/test"]["get"]["responses"]["401"];
             404: paths["/webhooks/{webhookId}"]["get"]["responses"]["404"];
             500: paths["/test"]["get"]["responses"]["500"];
@@ -912,10 +912,16 @@ export interface operations {
                     classificationStatus?: "created" | "pending" | "processing" | "classified" | "failed" | "inactive";
                     /** @description Department handling the matter */
                     department?: string;
+                    /** @description System-generated matter description synthesized from the matter's timecard narratives by the directory timecard-synthesis pipeline. Used as background context for downstream timecard classification. Read-only.
+                     *      */
+                    readonly derivedDescription?: string;
                     /** @description Detailed description of the matter. This is the Narrative Description Text in the SALI Matter Record. */
                     description?: string;
                     /** @description ID in external system */
                     id: string;
+                    /** @description Key insights derived for the matter during synthesis, one per entry. Read-only; absent until the matter's timecards have been synthesized.
+                     *      */
+                    readonly keyInsights?: string[];
                     /** @description Matter type as defined in the Firm's Matter Type Taxonomy */
                     matterType?: string;
                     players?: {
@@ -929,9 +935,56 @@ export interface operations {
                          */
                         type: "client" | "attorney" | "other";
                     }[];
-                    /** @description Aggregated count of associated timecards per status. */
-                    timecardStatusCounts?: {
-                        [key: string]: number;
+                    /** @description Practice group responsible for the matter — the smaller organizational unit within a department (a department typically spans several practice groups). Firm-internal label; the firm supplies the value set. Provide when available.
+                     *      */
+                    practiceGroup?: string;
+                    /** @description Hours-weighted distribution of the matter's classified timecards by their primary SALI service classification, maintained by the directory timecard-synthesis pipeline. Background signal for downstream classification; absent until the matter's timecards have been classified.
+                     *      */
+                    readonly rollup?: {
+                        /** @description Keyed by the timecard's primary service classification value ('generic' for generic entries).
+                         *      */
+                        classDistribution?: {
+                            [key: string]: {
+                                count?: number;
+                                hours?: number;
+                            };
+                        };
+                        timecardCount?: number;
+                        totalHours?: number;
+                    };
+                    /** @description Reasoning that produced the synthesized derivedDescription. Read-only; absent until the matter's timecards have been synthesized.
+                     *      */
+                    readonly synthesisReasoning?: string;
+                    /** @description Populated on the internal matter reads and the classification workflow/task payloads only — it is a classification input, not a matter output, and the public External API does not return it. Present on this shared schema because the timecard/matter classify payloads inherit it.
+                     *      */
+                    readonly timelineDigest?: {
+                        /** @description Latest timecard date across the matter's source dataset (file or project). The reference point for recency: a matter whose lastActivityDate trails this date by more than stalledThresholdDays has gone quiet relative to the dataset.
+                         *      */
+                        datasetCutoffDate?: string;
+                        /** @description Sample narratives from the start of the matter's timeline, chronological. */
+                        earliestNarratives?: paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["0"]["timelineDigest"]["latestNarratives"]["items"][];
+                        /** @description ISO date of the matter's earliest timecard entry. */
+                        firstActivityDate?: string;
+                        /** @description ISO date of the matter's latest timecard entry. */
+                        lastActivityDate?: string;
+                        /** @description Sample narratives from the end of the matter's timeline, chronological. Terminal language here (closing, dismissal, settlement, deal collapse) is the primary completion-event evidence.
+                         *      */
+                        latestNarratives?: {
+                            /** @description ISO date of the entry. */
+                            date?: string;
+                            hours?: number;
+                            narrative?: string;
+                        }[];
+                        /** @description Per-month activity aggregates in chronological order. */
+                        months?: {
+                            entries?: number;
+                            hours?: number;
+                            /** @description Calendar month in YYYY-MM format. */
+                            month?: string;
+                        }[];
+                        /** @description Inactivity window (days, relative to datasetCutoffDate) the deployment treats as a stall signal. Configured per customer; a soft signal for classification, not a hard rule.
+                         *      */
+                        stalledThresholdDays?: number;
                     };
                     /** @description Title/name of the matter */
                     title: string;
@@ -939,7 +992,7 @@ export interface operations {
                     readonly uri?: string;
                 } & {
                     /** @description Matter Product Configuration */
-                    config?: {
+                    config?: (paths["/matters/{matterId}/timecards"]["post"]["requestBody"]["content"]["application/json"]["schema"]["allOf"]["1"]["config"]["oneOf"]["0"]["allOf"]["0"] & {
                         /** @constant */
                         action: "classify";
                         /**
@@ -947,10 +1000,10 @@ export interface operations {
                          * @enum {string}
                          */
                         dataSource?: "sali";
-                    } | {
+                    }) | (paths["/matters/{matterId}/timecards"]["post"]["requestBody"]["content"]["application/json"]["schema"]["allOf"]["1"]["config"]["oneOf"]["0"]["allOf"]["0"] & {
                         /** @constant */
                         action: "save";
-                    };
+                    });
                 };
             };
         };
@@ -988,7 +1041,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": paths["/matters"]["post"]["requestBody"]["content"]["application/json"]["schema"]["allOf"]["0"] & {
-                        readonly classifications?: (paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["3"]["timecard"]["allOf"]["1"]["classifications"]["items"] | {
+                        readonly classifications?: ({
+                            /** @description Explanation of the classification */
+                            explanation?: string;
+                            /** @description The full hierarchical path from major class to this value */
+                            hierarchy?: {
+                                /** @description IRI of the service */
+                                id: string;
+                                value: paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["0"]["value"];
+                            }[];
+                            /** @description IRI of the service */
+                            id?: string;
+                            /** @description Whether the classification is the primary classification for the matter */
+                            isPrimary?: boolean;
+                            /** @constant */
+                            source: "sali";
+                            /** @constant */
+                            type: "service";
+                            /** @description A SALI Service class or subclass value. The value is intentionally not enumerated in the schema: the authoritative value list is the SALI Service taxonomy reference data (e.g. sali/labels/Service.json shipped with the services), which is large and updated independently of this contract. Producers validate emitted values against that taxonomy reference data.
+                             *      */
+                            value: string;
+                        } | {
                             /** @description Explanation of the classification */
                             explanation?: string;
                             /** @description The full hierarchical path from major class to this value */
@@ -1004,18 +1077,87 @@ export interface operations {
                             /** @constant */
                             source: "sali";
                             /** @constant */
-                            type: "areaOfLaw";
+                            type: "area";
+                            /** @description A SALI Area of Law value. The Area of Law provides context to the process — the primary subject of law involved (for example, "He prosecuted the defendant" is criminal law; "She prosecuted the patent" is intellectual property law); a matter may carry multiple areas of law. The value is intentionally not enumerated in the schema: the authoritative value list is the SALI Area of Law taxonomy reference data (e.g. sali/labels/Area of Law.json shipped with the services), which is large and updated independently of this contract. Producers validate emitted values against that taxonomy reference data.
+                             *      */
+                            value: string;
+                        } | {
+                            /** @description Model confidence for this label, reported per label to support per-field acceptance evaluation */
+                            confidence?: number;
+                            /** @description Explanation of the classification */
+                            explanation?: string;
                             /**
-                             * @description The Area of Law is a SALI enumerated value that provides context to the process. The area of law should be thought of the primary subject of law for the process — think the class that’s the attorney was in when she learned about the applicable law. The area of law is provided primarily for context as in the examples, “He prosecuted the defendant” and “She prosecuted the patent.” The first is criminal law, the second is intellectual property law. There can be multiple areas of law.
-                             * @enum {string}
+                             * @description The label code within the custom taxonomy
+                             * @example SO-01-006
                              */
-                            value: "Constitutional and Civil Rights Law" | "Individual Rights Law" | "Environmental, Social, and Governance Law" | "Discrimination Law" | "Political Rights Law" | "Personal Injury and Tort Law" | "Personal Property Law" | "Product Liability Law" | "Defamation Law" | "Mass Torts Law" | "Negligence and Malpractice Law" | "Assault Law" | "Fraud and Economic Torts Law" | "Information Security Law" | "Cybersecurity Law" | "Privacy Law" | "Government Access and Disclosure Law" | "Banking Law" | "Cryptocurrency Law" | "Bank Secrecy and Anti-Money Laundering Law" | "Banking Operations Law" | "Municipal Law" | "Public and Administrative Law" | "Indigenous People's Law" | "Military and Veterans Law" | "Project Finance Law" | "Public Health and Welfare Law" | "Public Finance Law" | "Public Policy and Government Affairs Law" | "Government Contracts Law" | "Election Law" | "Bankruptcy, Insolvency, and Restructuring Law" | "Personal Insolvency Law" | "Corporate Insolvency Law" | "Law of Obligations" | "Food and Drug Law" | "Energy Law" | "Renewable Energy Law" | "Solar Energy Law" | "Hydroelectric Energy Law" | "Wind Power Law" | "Nuclear Law" | "Energy Sales and Transmission Law" | "Oil and Gas Law" | "Transportation Law" | "Motor Vehicle Law" | "Aviation Law" | "Railway Law" | "Personal and Family Law" | "Trusts and Estate Planning Law" | "Custody Law" | "Juvenile Law" | "Matrimonial Law" | "Immigration Law" | "Employment Immigration Law" | "Adoption, Surrogacy, and Paternity Law" | "Probate Law" | "Religious Law" | "Islamic Law" | "Jewish Law" | "Indigenous and Tribal Religious Laws" | "Canon Law" | "Sikh Law" | "Hindu Law" | "Buddhist Law" | "Cannabis Law" | "Gaming Law" | "Securities and Financial Instruments Law" | "Investment Advisor Law" | "Derivatives and Futures Law" | "Investment Companies Law" | "Exchanges Law" | "Structured Finance Law" | "Commodities Law" | "Security Offerings and Capital Markets Law" | "Broker-Dealer Law" | "Private Equity, Hedge Funds and Venture Capital Law" | "Contract Law" | "Property Rights and Transactions Law" | "Civil Contract Law" | "Commercial Transactions Law" | "Employment Contracts Law" | "Independent Contractor Law" | "Labor and Employment Law" | "Reduction in Force Law" | "Employment Law" | "Substance Abuse and Drug Testing Law" | "Labor Law" | "Wage and Hour Law" | "Employment Discrimination Law" | "Employment Health and Safety Law" | "Pay Equity Law" | "Termination Law" | "Unemployment Benefits Law" | "Employee Pension and Benefits Law" | "Employee Stock Ownership Plans Law" | "Workers Compensation Law" | "Education Law" | "Insurance Law" | "Disability Insurance Law" | "Accident Benefits Law" | "Captive Insurance Law" | "Real Property Law" | "Condominium Law" | "Construction and Development Law" | "Eminent Domain Law" | "Landlord Tenant Law" | "Land Use and Zoning Law" | "Intellectual Property Law" | "Patent Law" | "Trade Secret Law" | "Trademark and Trade Dress Law" | "Copyright Law" | "Finance and Lending Law" | "Commercial Finance Law" | "Lender Liability Law" | "Debt Collection Law" | "Corporate Law" | "Business Organizations Law" | "Corporate Governance Law" | "Financial Reporting Law" | "Mergers and Acquisitions Law" | "Criminal Law" | "Prison Law" | "Anti-Corruption Law" | "Asset Forfeiture Law" | "Organized Crime Law" | "Business and Financial Crimes Law" | "Cybercrime Law" | "Environmental and Natural Resource Law" | "Water Resources and Wetlands Law" | "Forest Resources Law" | "Contaminant Cleanup Law" | "Waste Management Law" | "Air Quality Law" | "Water Quality Law" | "Mineral Resources Law" | "Chemical Safety Law" | "Fish and Game Law" | "Impact Assessment Law" | "Wildlife and Plants Law" | "Agriculture Law" | "Tax and Revenue Law" | "Estates, Gifts, and Trusts Law" | "Non-Profit and Tax-Exempt Organizations Law" | "Tax Law" | "Tax Credits Law" | "Health Law" | "Telecommunications, Media, and Entertainment Law" | "Entertainment Law" | "Telecommunications Law" | "Broadcasting Law" | "Telecommunication Utilities Law" | "Sports Law" | "Advertising Law" | "Commercial and Trade Law" | "Trade Law" | "Admiralty and Maritime Law" | "Consumer Protection Law" | "Franchise Law" | "Antitrust and Competition Law";
+                            id?: string;
+                            /** @description Whether the classification is the primary label within its taxonomy */
+                            isPrimary?: boolean;
+                            /** @constant */
+                            source: "custom";
+                            /** @description The id of a label taxonomy for matter/timecard classification. An unconstrained string: validity of a given taxonomyId is owned by the tasks service at classification-creation time, not by this schema. Index-derived custom-label taxonomies follow the naming convention `ServiceOffering1`, `ServiceOfferingType1`, `MatterStage1`, `MatterStatus1`, `ClientMatterRole1`, `Activity1`, `Task1`; client-provided (firm) rows follow the `Activity2` / `Task2` convention. These ids are anonymous on purpose so they can't be used to identify our customers, since they might be exposed in a public API in the future.
+                             *      */
+                            taxonomyId: string;
+                            /** @constant */
+                            type: "custom";
+                            /**
+                             * @description The label name from the custom taxonomy
+                             * @example Cartel Defense
+                             */
+                            value: string;
+                        } | {
+                            /** @description Model confidence for this label, reported per label to support per-field acceptance evaluation */
+                            confidence?: number;
+                            /** @description Explanation of the classification */
+                            explanation?: string;
+                            /**
+                             * @description The client-provided label code (open vocabulary)
+                             * @example A104
+                             */
+                            id?: string;
+                            /** @description Whether the classification is the primary label within its taxonomy */
+                            isPrimary?: boolean;
+                            /** @constant */
+                            source: "firm";
+                            taxonomyId: paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["2"]["taxonomyId"];
+                            /** @constant */
+                            type: "firm";
+                            /**
+                             * @description The client-provided label name (open vocabulary)
+                             * @example Deposition Preparation
+                             */
+                            value: string;
                         })[];
                     };
                 };
             };
             400: paths["/test"]["get"]["responses"]["500"];
             401: paths["/test"]["get"]["responses"]["401"];
+            500: paths["/test"]["get"]["responses"]["500"];
+        };
+    };
+    deleteMatter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The ID of a matter from your system */
+                matterId: components["parameters"]["matterId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    "Access-Control-Allow-Origin"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: paths["/test"]["get"]["responses"]["401"];
+            404: paths["/webhooks/{webhookId}"]["get"]["responses"]["404"];
             500: paths["/test"]["get"]["responses"]["500"];
         };
     };
@@ -1038,8 +1180,6 @@ export interface operations {
                      * @description Timestamp representing when the work was performed.
                      */
                     date?: string;
-                    /** @description External identifier supplied by the client for this timecard. */
-                    externalId: string;
                     /** @description External identifier for the associated matter (client-controlled). */
                     externalMatterId: string;
                     /**
@@ -1047,6 +1187,8 @@ export interface operations {
                      * @description Total hours recorded on the timecard.
                      */
                     hours?: number;
+                    /** @description External identifier supplied by the client for this timecard. */
+                    id: string;
                     /** @description Narrative describing the work that should be classified. */
                     narrative: string;
                     /** @description People involved in the work described by the timecard. */
@@ -1063,6 +1205,12 @@ export interface operations {
                 } & {
                     /** @description Timecard Product Configuration */
                     config: {
+                        /**
+                         * @description Optional retention window in days. Must be one of 7, 30, or 90. When set, the object and its co-located secondary records (e.g. changesets; a matter's timecards) are removed via DynamoDB TTL at least this many days after the most recent create/upsert. Latest request wins: re-POSTing with a ttl resets the expiry window, and re-POSTing without a ttl (omitted or null) clears any previously set expiry, meaning no TTL. Deletion timing is approximate — after expiry, deletion typically occurs within minutes to ~48h.
+                         * @enum {integer|null}
+                         */
+                        ttl?: 7 | 30 | 90 | null;
+                    } & {
                         /** @constant */
                         action: "classify";
                         /**
@@ -1083,8 +1231,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @description Owning account identifier for internal routing. */
-                        readonly accountId?: string;
                         /**
                          * Format: date-time
                          * @description Timestamp when the timecard was created in the system.
@@ -1095,8 +1241,6 @@ export interface operations {
                          * @description Timestamp representing when the work was performed.
                          */
                         date?: string;
-                        /** @description External identifier supplied by the client for this timecard. */
-                        externalId: string;
                         /** @description External identifier for the associated matter (client-controlled). */
                         externalMatterId: string;
                         /**
@@ -1104,16 +1248,14 @@ export interface operations {
                          * @description Total hours recorded on the timecard.
                          */
                         hours?: number;
-                        /** @description Internal identifier generated by the system. */
-                        readonly id: string;
+                        /** @description External identifier supplied by the client for this timecard. */
+                        id: string;
                         /** @description Internal URI of the associated matter. */
                         matterUri: string;
                         /** @description Narrative describing the work that should be classified. */
                         narrative: string;
                         /** @description People involved in the work described by the timecard. */
                         players?: paths["/matters/{matterId}/timecards"]["post"]["requestBody"]["content"]["application/json"]["schema"]["allOf"]["0"]["players"]["items"][];
-                        /** @description Number of classification retry attempts made for this timecard. */
-                        retryCount?: number;
                         /**
                          * @description Lifecycle status values for the timecard classification workflow.
                          * @enum {string}
@@ -1130,7 +1272,7 @@ export interface operations {
                          */
                         readonly updatedAt?: string;
                         /** @description Internal URI that uniquely identifies the timecard. */
-                        uri: string;
+                        readonly uri: string;
                     } & {
                         blockBookingDetails?: {
                             /** @description Total number of distinct tasks detected in the timecard. */
@@ -1143,7 +1285,7 @@ export interface operations {
                                  */
                                 allocatedHours?: number;
                                 /** @description Service classifications specific to this task. */
-                                classifications?: paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["3"]["timecard"]["allOf"]["1"]["classifications"]["items"][];
+                                classifications?: paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["0"][];
                                 /** @description Description of the individual task extracted from the narrative. */
                                 description: string;
                             }[];
@@ -1154,29 +1296,7 @@ export interface operations {
                          */
                         blockBookingType?: "subtimed" | "non-subtimed";
                         /** @description Classification results applied to the timecard. */
-                        classifications: {
-                            /** @description Explanation of the classification */
-                            explanation?: string;
-                            /** @description The full hierarchical path from major class to this value */
-                            hierarchy?: {
-                                /** @description IRI of the service */
-                                id: string;
-                                value: paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["3"]["timecard"]["allOf"]["1"]["classifications"]["items"]["value"];
-                            }[];
-                            /** @description IRI of the service */
-                            id?: string;
-                            /** @description Whether the classification is the primary classification for the matter */
-                            isPrimary?: boolean;
-                            /** @constant */
-                            source: "sali";
-                            /** @constant */
-                            type: "service";
-                            /**
-                             * @description SALI Service Classes and Subclasses
-                             * @enum {string}
-                             */
-                            value: "Bankruptcy and Financial Restructuring Practice" | "Bankruptcy Claims Practice" | "Claims Filing Practice" | "Claims Objection Practice" | "Claims Review Practice" | "Reorganization Bankruptcy" | "US Chapter 13 Bankruptcy" | "US Chapter 11 Bankruptcy" | "US Chapter 11 Bankruptcy - Streamlined" | "US Chapter 11 - Small Business Debtors" | "US Chapter 12 Bankruptcy" | "Bankruptcy Budgeting Practice" | "Fee and Employment Practice" | "Fee Objection Practice" | "Fee Application Process" | "Employment Application Process" | "Employment Objection Process" | "Adversary Proceeding Practice" | "Trial Court Practice" | "Pretrial Practice" | "Discovery Practice" | "Document Collection and Production Practice" | "Identification of Documents Practice" | "Analysis of Documents Practice" | "Processing of Documents Practice" | "Presentation of Documents Practice" | "Preservation of Documents Practice" | "Collection of Documents Practice" | "Review of Documents Practice" | "Production of Documents Practice" | "Written Discovery Practice" | "Interrogatories Practice" | "Subpoena Practice" | "Subpoena Response Practice" | "Subpoena Assertion Practice" | "Requests for Admission Practice" | "Requests for Production Practice" | "Deposition Practice" | "Corporate Representative Deposition Practice" | "Expert Deposition Practice" | "Fact Deposition Practice" | "Deposition Posture" | "Observing Deposition" | "Defending Deposition" | "Taking Deposition" | "Discovery Motion Practice" | "Expert Practice" | "Physical Examination Practice" | "Expert Report Practice" | "Expert Interview Practice" | "Daubert Motion Practice" | "Pretrial Motion Practice" | "Dispositive Motion Practice" | "Injunctions, Restraining Orders, and Provisional Remedies Practice" | "Pleadings Practice" | "Post-Trial Practice" | "Post-Trial Submission Practice" | "Trial and Post-Trial Motion Practice" | "Trial Practice" | "Witness Examination Practice" | "Cross-Examination of Witness" | "Direct-Examination of Witness" | "Jury Selection / Voire Dire Practice" | "Trial Preparation Practice" | "Trial Testimony Practice" | "Asset Analysis" | "Asset Valuation Practice" | "Asset Due Diligence Practice" | "Examiner Investigation Practice" | "Asset Turnover Practice" | "Non-Litigation Recovery Practice" | "Financial Advisor Practice" | "Out-of-Court Restructuring" | "Receivership Creation" | "Assignment for the Benefit of Creditors" | "Individualized Restructuring" | "Liquidation Bankruptcy" | "US Chapter 7 Bankruptcy" | "Relief from Stay Practice" | "Automatic Stay Practice" | "Adequate Protection Practice" | "Bankruptcy Case Closure Practice" | "Insolvency Practice" | "US Chapter 15 Bankruptcy" | "Corporate Governance Analysis" | "Debt Repayment Plan Bankruptcy" | "Analysis of Entity Formation" | "Creditor Meeting and Communication Practice" | "Bankruptcy Exit Financing" | "Bankruptcy Initiation Type" | "Voluntary Bankruptcy" | "Involuntary Bankruptcy" | "Bankruptcy Motion Practice" | "US Chapter 9 Bankruptcy" | "Settlement, Demand, and Collection Practice" | "Demand Letter Practice" | "Debt Collection Practice" | "Domestication Action" | "Settlement Practice" | "Negotiation Sequence" | "Collective Bargaining Event" | "Obligation Analysis" | "Analysis of Vendors & Commercial Arrangement Considerations" | "Analysis of Critical Vendor Status" | "Analysis of Vendor Contracts" | "Analysis of Vendor Communications" | "Analysis of Utilities Considerations" | "Analysis of Securities Reporting Considerations" | "Analysis of Pre-Petition Lien Issues" | "Analysis of Financial Reports" | "Analysis of Insurance Considerations" | "Analysis of Use of Cash" | "Analysis of DIP Financing" | "Analysis of Cash Collateral" | "Analysis of Cash Management" | "Analysis of Monthly Operating Reports" | "Analysis of Cash Management Reports" | "Analysis of Pre-Petition Debt Agreements" | "Analysis of Student Loan Obligations" | "Analysis of Pre-Petition Auto Financing" | "Analysis of Pre-Petition Mortgage" | "Analysis of Dischargeability Issues" | "Analysis of Employee Benefits/Pensions" | "Analysis of Employee Retention" | "Analysis of KEIPs and KERPs" | "Analysis of Benefits Plans" | "Analysis of Severance Obligations" | "Analysis of Severance Arrangement Issues" | "Analysis of Environmental Considerations" | "Avoidance Action Practice" | "Asset Disposition Practice" | "Asset Sales Practice" | "Abandonment Practice" | "Advisory Service" | "Appropriations Practice" | "Government Appropriations Practice" | "Opinion Memo Practice" | "Manuals Practice" | "Grass Roots Organization and Management" | "Coalition Formation and Management Practice" | "Government Coalition Management" | "Strategic Communications Practice" | "Crisis Communications Practice" | "Corporate Campaigns Practice" | "Employee Rights Campaigns Practice" | "Tabletop Exercise Practice" | "Policies Practice" | "Crisis Management Practice" | "Governmental Monitoring Practice" | "Legislative Monitoring Practice" | "Judicial Branch Monitoring Practice" | "Executive Branch Monitoring Practice" | "Regulatory Services (Non-Dispute)" | "Regulatory Enforcement" | "Tax Practice" | "Use Tax Practice" | "Income Tax Practice" | "Sales Tax Practice" | "Excise Tax Practice" | "Property Tax Practice" | "Monitoring" | "International Trade Practice" | "Customs and Import Controls Practice" | "Export Controls Practice" | "Public Benefits" | "Public Housing Benefit" | "School-Based Public Benefit" | "Non-Contributory Benefit" | "Disability Public Benefit" | "In-home Supportive Service Disability Benefit" | "Assessment of Eligibility for Public Benefits" | "Old Age Public Benefits" | "Unemployment Public Benefits" | "Health Public Benefit" | "Family Health Public Benefit" | "Mother and Child Health Public Benefit" | "Pediatric Screening and Intervention Public Benefit" | "Food and Cash Public Benefit" | "Food Public Benefit" | "General Relief Benefit" | "Cash Public Benefit" | "Provider of Public Benefits" | "State-Provided Public Benefit" | "Nation-Provided Public Benefit" | "Locally Provided Public Benefit" | "Military and Veteran Benefits" | "Contributory Benefit" | "Pension Benefit" | "Estate Management Practice" | "Estate Planning Practice" | "Estate Administration Practice" | "Immigration Service" | "Government Relations" | "Legislative Drafting Practice" | "Public Comment Practice" | "Regulatory Drafting Practice" | "Lobbying" | "Disaster Relief" | "Economic Development Service" | "Regulatory Processing Service" | "Regulatory Application Service" | "Regulatory Eligibility Determination Service" | "Intellectual Property Registration Process" | "Domain Name Registration Process" | "Copyright Registration Process" | "Patent Registration Process" | "Patent Assessment Process" | "Prior Art Search Process" | "Patent Search Process" | "Plant Patent Registration" | "Design Patent Registration" | "Patent Opposition Process" | "Patent Reexamination Process" | "Utility Patent Registration" | "Trademark Registration Process" | "Trademark Opposition Process" | "Trademark Renewal Process" | "Trademark Search Process" | "Trademark Cancellation Process" | "Customs Recordal Process" | "Regulatory Compliance" | "Regulatory Disclosure Practice" | "Regulatory Investigation" | "Insurance Regulatory Practice" | "Audit Practice" | "Real Estate Regulatory Services" | "Roadway Closing" | "Density Credit Transactions" | "Roadway Dedication" | "Real Estate Permit Review" | "Real Estate Design Review" | "Real Estate Zoning Modifications" | "Zoning Document Amendments" | "Zoning Text Amendments" | "Zoning Map Amendments" | "Real Estate Special Exception" | "Clearing Title" | "Dispute Service" | "Litigation Practice" | "Alternative Dispute Resolution Practice" | "Mediation Practice" | "Arbitration Practice" | "Domain Name Dispute Resolution Practice" | "Affidavit / Declaration Practice" | "Appellate Practice" | "Appellate Briefing Practice" | "Appellate Motions and Submissions Practice" | "Appellate Argument Practice" | "Case Assessment, Development, Administration" | "Document and File Management" | "Co-Party Coordination" | "Analysis and Strategy" | "Fact Investigation and Development" | "Invalidity Analysis Practice" | "Technical Analysis" | "Fact Witness Interview Practice" | "Infringement Analysis Practice" | "Claim Construction Practice" | "Dispute Proceeding Type" | "Investigation Practice" | "Foreign Direct Investment Review" | "Inquiry Practice" | "Examination Under Oath" | "Tax Dispute Practice" | "Tax Audit Practice" | "Administrative Dispute Proceeding Practice" | "Trade Safeguards Dispute" | "Post-Grant Review" | "Unfair Import Investigation" | "U.S. Inter Partes Review" | "Covered Business Method Review" | "Civil Court Proceeding" | "Criminal Court Proceeding" | "Transactional Practice" | "Services Agreement Practice" | "Funds Practice" | "Fund Formation Practice" | "Lease Practice" | "Employment Transactions Practice" | "Executive Compensation Practice" | "Mortgage Practice" | "Securitization Practice" | "Licensing Practice" | "Separation Agreement  Practice" | "Mergers and Acquisitions Practice" | "M&A Practice Components" | "M&A A Preliminary Matters Practice" | "M&A D Ancillary Documents Practice" | "M&A F Regulatory and Specialty Matters Practice" | "M&A F8 Tax Practice" | "M&A F7 Securities Regulatory Matters Practice" | "M&A F3 Employment, Labor and Employee Benefits Practice" | "M&A F1 Antitrust / Competition Practice" | "M&A F5 Intellectual Property and Technology Practice" | "M&A F6 Real Property Practice" | "M&A F4 Environmental Practice" | "M&A F2 Data Security / Privacy / Data Protection / Cybersecurity Practice" | "M&A K Deal Management Practice" | "M&A I Integration Matters Practice" | "M&A C Due Diligence and Disclosure Schedules Practice" | "M&A H Closing Matters Practice" | "M&A J Post-Closing Requirements, Disputes & Adjustments Practice" | "M&A E Financing Practice" | "M&A B Purchase / Merger Agreement Practice" | "M&A G Shareholder / Board Matters Practice" | "Entity Formation Practice" | "Non-Profit Formation Practice" | "Business Formation Practice" | "Trust Formation Practice" | "Joint Venture Formation Practice" | "Purchase and Sale Practice" | "Service Sales Practice" | "Financing Practice" | "Equity Financing Practice" | "Secondary Offering Practice" | "Shelf Takedown" | "Shelf Registration" | "Private Placement Practice" | "Private Investment in Public Equity Practice" | "Direct Public Offering Practice" | "Initial Public Offering Practice" | "Rights Offering Practice" | "Debt Financing Practice" | "Lending Practice" | "Asset-Based Lending Practice" | "Reserve Based Lending Practice" | "Development of Property Practice";
-                        }[];
+                        classifications: (paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["0"] | paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["2"])[];
                         /** @description Code describing a terminal classification failure. Present when status is `failed`.
                          *     Examples include `matter_failed` or `unclassifiable`.
                          *      */
@@ -1227,7 +1347,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            204: paths["/contacts/{contactId}"]["delete"]["responses"]["204"];
+            204: paths["/matters/{matterId}"]["delete"]["responses"]["204"];
             400: paths["/test"]["get"]["responses"]["500"];
             401: paths["/test"]["get"]["responses"]["401"];
             500: paths["/test"]["get"]["responses"]["500"];
@@ -1315,7 +1435,7 @@ export interface operations {
                     urls?: paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["sp"]["urls"]["items"][];
                 } & {
                     /** @description Organization Product Configuration */
-                    config?: {
+                    config?: (paths["/matters/{matterId}/timecards"]["post"]["requestBody"]["content"]["application/json"]["schema"]["allOf"]["1"]["config"]["oneOf"]["0"]["allOf"]["0"] & {
                         /** @constant */
                         action: "resolve";
                         /** @description The ID of a custom taxonomy that has been setup previously via support. If set a label based on this custom taxonomy will be created. */
@@ -1361,10 +1481,10 @@ export interface operations {
                          * @default false
                          */
                         searchAliases?: boolean;
-                    } | {
+                    }) | (paths["/matters/{matterId}/timecards"]["post"]["requestBody"]["content"]["application/json"]["schema"]["allOf"]["1"]["config"]["oneOf"]["0"]["allOf"]["0"] & {
                         /** @constant */
                         action: "save";
-                    };
+                    });
                 };
             };
         };
@@ -1446,7 +1566,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            204: paths["/contacts/{contactId}"]["delete"]["responses"]["204"];
+            204: paths["/matters/{matterId}"]["delete"]["responses"]["204"];
             401: paths["/test"]["get"]["responses"]["401"];
             404: paths["/webhooks/{webhookId}"]["get"]["responses"]["404"];
             500: paths["/test"]["get"]["responses"]["500"];
@@ -1469,6 +1589,20 @@ export interface operations {
             200: paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"];
             400: paths["/test"]["get"]["responses"]["500"];
             401: paths["/test"]["get"]["responses"]["401"];
+            /** @description Access token is not sufficient for this action */
+            403: {
+                headers: {
+                    "Access-Control-Allow-Origin"?: string;
+                    "x-amzn-ErrorType"?: string;
+                    "x-amzn-RequestId"?: string;
+                    "X-Amzn-Trace-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": paths["/test"]["get"]["responses"]["401"]["content"]["application/json"]["schema"];
+                };
+            };
+            404: paths["/webhooks/{webhookId}"]["get"]["responses"]["404"];
             500: paths["/test"]["get"]["responses"]["500"];
         };
     };
@@ -1491,6 +1625,8 @@ export interface operations {
             200: paths["/organizations/{organizationId}/profiles/{dataSource}"]["get"]["responses"]["200"];
             400: paths["/test"]["get"]["responses"]["500"];
             401: paths["/test"]["get"]["responses"]["401"];
+            403: paths["/organizations/{organizationId}/{referenceType}/profiles"]["get"]["responses"]["403"];
+            404: paths["/webhooks/{webhookId}"]["get"]["responses"]["404"];
             500: paths["/test"]["get"]["responses"]["500"];
         };
     };
@@ -1744,7 +1880,7 @@ export interface operations {
                              * @description The product of the file
                              * @enum {string}
                              */
-                            productId: "clean-1" | "clean-urgent" | "clean-q" | "quick-clean-1" | "quick-extract-clean-1" | "contact-insights" | "extract-email-signature" | "monitor-monthly" | "monitor-quarterly" | "entity-resolve" | "entity-resolve-monitor-monthly" | "entity-resolve-monitor-quarterly" | "matter-classify" | "timecard-classify" | "matter-er";
+                            productId: "clean-1" | "clean-urgent" | "clean-q" | "quick-clean-1" | "quick-extract-clean-1" | "contact-insights" | "extract-email-signature" | "monitor-monthly" | "monitor-quarterly" | "entity-resolve" | "entity-resolve-monitor-monthly" | "entity-resolve-monitor-quarterly" | "matter-classify" | "timecard-classify" | "matter-er" | "sp-data" | "dnb-data";
                             /** @description Project URI considered for quota. */
                             projectUri: string;
                             /**
@@ -1889,7 +2025,10 @@ export interface operations {
                     name?: string;
                     /** @enum {string} */
                     status?: "enabled" | "disabled";
-                    /** Format: uri */
+                    /**
+                     * Format: uri
+                     * @description Publicly reachable https URL. Redirects are not followed — the endpoint must return 2xx directly.
+                     */
                     url: string;
                 };
             };
