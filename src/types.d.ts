@@ -123,7 +123,7 @@ export interface paths {
         };
         /**
          * Poll for events
-         * @description Long polling endpoint for all types of events. Returns an array of events that occurred since the last poll.
+         * @description Long polling endpoint for events. Returns an array of events that occurred since the last poll, limited to the event types the resources enabled for your project entitle you to — see the Webhooks section for the mapping. `eventTypes` narrows that set further; it cannot widen it.
          *
          */
         get: operations["listEvents"];
@@ -1000,6 +1000,11 @@ export interface operations {
                          * @enum {string}
                          */
                         dataSource?: "sali";
+                        /**
+                         * @description Whether timecards will be submitted for this matter. Matter classification is normally derived from the matter's timecard narratives, so by default a matter waits for timecards to arrive before it is classified. Set to false when the matter's own fields (title, description, matterType, department) are the only input that will ever be available; the matter is then classified directly on those fields without waiting. Defaults to true when omitted. Note that a matter carrying only a title yields substantially weaker classifications than one classified from timecard narratives.
+                         * @default true
+                         */
+                        expectTimecards?: boolean;
                     }) | (paths["/matters/{matterId}/timecards"]["post"]["requestBody"]["content"]["application/json"]["schema"]["allOf"]["1"]["config"]["oneOf"]["0"]["allOf"]["0"] & {
                         /** @constant */
                         action: "save";
@@ -1082,6 +1087,20 @@ export interface operations {
                              *      */
                             value: string;
                         } | {
+                            /** @description Explanation of the classification */
+                            explanation?: string;
+                            /** @description Code of the role in matter label (e.g. "buyer", "debtor") */
+                            id?: string;
+                            /** @description Whether the classification is the primary classification for the matter */
+                            isPrimary?: boolean;
+                            /** @constant */
+                            source: "sali";
+                            /** @constant */
+                            type: "role";
+                            /** @description A Role in Matter value — the role the firm's client plays in the matter (for example "Debtor", "Lender", "Buyer", "Defendant / Respondent"). The value is intentionally not enumerated in the schema: the authoritative value list is the curated client-role label set rolled up from the SALI Role in Matter taxonomy (sali/labels/Role in Matter.json shipped with the services), which is updated independently of this contract. Producers validate emitted values against that reference data.
+                             *      */
+                            value: string;
+                        } | {
                             /** @description Model confidence for this label, reported per label to support per-field acceptance evaluation */
                             confidence?: number;
                             /** @description Explanation of the classification */
@@ -1119,7 +1138,7 @@ export interface operations {
                             isPrimary?: boolean;
                             /** @constant */
                             source: "firm";
-                            taxonomyId: paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["2"]["taxonomyId"];
+                            taxonomyId: paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["3"]["taxonomyId"];
                             /** @constant */
                             type: "firm";
                             /**
@@ -1296,7 +1315,7 @@ export interface operations {
                          */
                         blockBookingType?: "subtimed" | "non-subtimed";
                         /** @description Classification results applied to the timecard. */
-                        classifications: (paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["0"] | paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["2"])[];
+                        classifications: (paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["0"] | paths["/events"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["events"]["items"]["allOf"]["1"]["payload"]["anyOf"]["2"]["matter"]["allOf"]["1"]["classifications"]["items"]["anyOf"]["3"])[];
                         /** @description Code describing a terminal classification failure. Present when status is `failed`.
                          *     Examples include `matter_failed` or `unclassifiable`.
                          *      */
@@ -1837,7 +1856,112 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["dnb"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["sp"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["web"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["naics"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["sali"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["customTaxonomy"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["linkedin"];
+                    "application/json": paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["dnb"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["sp"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["web"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["naics"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["sali"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["customTaxonomy"] | paths["/organizations/{organizationId}/profiles"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["linkedin"] | {
+                        /** @description Number of dispatches made for this organization since the last successful terminal result. Drives the `failed` backoff; reset when a `found` or `none` is written.
+                         *      */
+                        attempts?: number;
+                        /**
+                         * Format: date-time
+                         * @description When the lookup last completed. Drives the 90-day `none` retry cadence.
+                         */
+                        checkedAt?: string;
+                        /** Format: float */
+                        confidence?: number;
+                        /** @description Fingerprint of what produced this profile's terminal state, for targeted regeneration campaigns. `task` is the task type that wrote it; `version` is bumped whenever that task's extraction logic or prompts change materially, so stale generations can be selected with `generator.version < N`. Combine with `workflowUri` for the full audit chain.
+                         *      */
+                        generator?: {
+                            /** @enum {string} */
+                            task?: "entity-findequity" | "entity-resolveequity";
+                            version?: number;
+                        };
+                        /**
+                         * Format: date-time
+                         * @description When the most recent lookup failed. Diagnostic.
+                         */
+                        lastFailureAt?: string;
+                        /** @description Every listing found for this company. Present only when status is `found`. Unique by (exchange, symbol). A `found` set is not guaranteed complete in v1 — see the equity section of docs/PRODUCTS.md.
+                         *      */
+                        listings?: {
+                            /**
+                             * @description Exchange display name, e.g. NASDAQ, NYSE, NYSE American, LSE.
+                             * @example NASDAQ
+                             */
+                            exchange: string;
+                            /** @description Whether this is the company's primary listing. Set only when confidently determined (a single listing, or a LinkedIn/web-search designation); omitted entirely when it cannot be determined. At most one listing may set it true.
+                             *      */
+                            isPrimary?: boolean;
+                            /**
+                             * @description Provenance for a directory-sourced listing — the exchange file's security name.
+                             * @example Alphabet Inc. - Class A Common Stock
+                             */
+                            securityName?: string;
+                            /**
+                             * @description Which stage of the lookup ladder contributed this listing.
+                             * @enum {string}
+                             */
+                            source?: "linkedin" | "websearch" | "exchange-list";
+                            /**
+                             * @description Ticker symbol, uppercase.
+                             * @example GOOGL
+                             */
+                            symbol: string;
+                        }[];
+                        /**
+                         * Format: date-time
+                         * @description Hard gate: the organization is not re-dispatched before this time, whatever its status. Set on `failed` from the attempts backoff. Never set on `found` in v1, but honoured if a later enrichment pass sets it (the re-check hook for incomplete listing sets).
+                         *
+                         */
+                        nextEligibleAt?: string;
+                        /**
+                         * Format: date-time
+                         * @description When the lookup was dispatched. Drives the pending dispatch timeout.
+                         */
+                        requestedAt?: string;
+                        /**
+                         * @description The stage of the lookup ladder that first established this company is listed. Individual listings may carry their own `source` when a later stage added them.
+                         *
+                         * @enum {string}
+                         */
+                        source?: "linkedin" | "websearch" | "exchange-list";
+                        /** @description Provenance of an `exchange-list` contribution — the source file it came from, e.g. "nasdaqtrader:2026-08-04".
+                         *      */
+                        sourceRef?: string;
+                        /**
+                         * @description Lookup lifecycle. `pending` is a dispatch placeholder that prevents a duplicate lookup; `found` means at least the primary listing is known and is durable; `none` means a completed lookup found no listing and is re-checked after 90 days; `failed` means the lookup errored and is NOT a result — it is retried on the `nextEligibleAt` backoff and must never be read as "not listed".
+                         *
+                         * @enum {string}
+                         */
+                        status?: "pending" | "found" | "none" | "failed";
+                        /** @description The workflow that produced this profile's current state. Written onto the `pending` placeholder at dispatch by entity-findequity-v1, and then carried into the terminal profile by the task that writes it, so the audit chain survives the pending -> found/none/failed transition. An entity-resolveequity-v1 profile has no placeholder and carries only the terminal value.
+                         *      */
+                        workflowUri?: string;
+                    } | {
+                        /**
+                         * @description The list's stable short code. This is the value callers filter by, and it never changes once a list is bootstrapped.
+                         *
+                         * @example sp500
+                         */
+                        code?: string;
+                        /**
+                         * @description How many constituents the last ingestion resolved. A count, not a guarantee: it may sit below the list's nominal size when a row failed to resolve to an organization, and it may sit above a round number because a list carries multiple share classes of one issuer.
+                         *
+                         * @example 503
+                         */
+                        constituentCount?: number;
+                        /**
+                         * @description The list's human-readable name.
+                         * @example S&P 500
+                         */
+                        displayName?: string;
+                        /**
+                         * Format: date-time
+                         * @description When the constituent set was last ingested.
+                         */
+                        refreshedAt?: string;
+                        /** @description Provenance of the constituent set — the holdings file the last ingestion read, e.g. "ishares-ivv:2026-08-18".
+                         *      */
+                        sourceRef?: string;
+                    };
                 };
             };
             400: paths["/test"]["get"]["responses"]["500"];
@@ -2022,12 +2146,18 @@ export interface operations {
                     events?: (components["parameters"]["eventTypes"]["schema"]["items"] | "*")[];
                     /** Format: uuid */
                     readonly id: string;
+                    /**
+                     * Format: date-time
+                     * @description When this webhook was last changed. Set at creation, so it equals `createdAt` until the first update.
+                     */
+                    readonly modifiedAt?: string;
                     name?: string;
                     /** @enum {string} */
                     status?: "enabled" | "disabled";
                     /**
                      * Format: uri
-                     * @description Publicly reachable https URL. Redirects are not followed — the endpoint must return 2xx directly.
+                     * @description Publicly reachable https URL. Redirects are not followed — the endpoint must return 2xx directly. One webhook per project may use a given URL; registering or updating a second one onto a URL already in use is rejected with a 400.
+                     *
                      */
                     url: string;
                 };
