@@ -147,6 +147,7 @@ export interface paths {
         /**
          * Create a new matter
          * @description Create a new matter with classification configuration. Matter Players are optional but recommended for better results.
+         *     The client player's firmographic fields (`legalName`, `industryPrimary`, `ownershipStatus`, `ticker`) are all optional. On projects with client-org hydration enabled, the ones you leave blank are filled from a matching Organization already in this directory — matched on the client player's `id` against the Organization's `id` — so you do not have to re-send data the directory already holds. A value you supply is never overwritten, and an explicitly empty string counts as "no value". `ticker` is customer-supplied only; it is not derived from the Organization. `GET /matters/{matterId}` returns the filled values.
          *
          */
         post: operations["createMatter"];
@@ -169,6 +170,7 @@ export interface paths {
         /**
          * Get Matter Information for a given ID
          * @description This API endpoint fetches the Matter and Classification Information for a given Matter ID.
+         *     On projects with client-org hydration enabled, the client player's firmographic fields you left blank on write are returned filled from the matching Organization. The values are derived at read time and are not stored on the matter, so they follow the Organization as it is enriched.
          *
          */
         get: operations["getMatter"];
@@ -927,8 +929,20 @@ export interface operations {
                     players?: {
                         /** @description ID of player in external system */
                         id?: string;
+                        /** @description Primary industry of the client entity. Where the deployment enables client-org hydration, filled from the matching organization's provider industry description when no value is supplied. Free string; a supplied value always wins.
+                         *      */
+                        industryPrimary?: string;
+                        /** @description Legal name of the client entity, when it differs from the display name. Where the deployment enables client-org hydration, filled from the matching organization's corporate-data provider profile when no value is supplied.
+                         *      */
+                        legalName?: string;
                         /** @description Name of the player */
                         name: string;
+                        /** @description Ownership form of the client entity. Where the deployment enables client-org hydration, filled from the matching organization's corporate-data provider profile and carried verbatim. Free string; a supplied value always wins.
+                         *      */
+                        ownershipStatus?: string;
+                        /** @description Stock ticker symbol for a public client entity, when present. Flat string (a single ingest column cannot carry an exchange/symbol object through the AI-mapping dot-path). Supplied only — it is not currently derived from the organization.
+                         *      */
+                        ticker?: string;
                         /**
                          * @description Type of the player
                          * @enum {string}
