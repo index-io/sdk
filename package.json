@@ -2,21 +2,26 @@
   "name": "index-sdk",
   "version": "1.0.0",
   "description": "API Documentation and SDK",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Use repo root npm run lint\" && exit 0"
+  "homepage": "https://github.com/index-io/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/index-io/sdk/issues"
   },
+  "license": "MIT",
+  "author": "Index Solutions Inc",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/index-io/sdk.git"
   },
-  "author": "Index Solutions Inc",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/index-io/sdk/issues"
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Use repo root npm run lint\" && exit 0",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
   },
-  "homepage": "https://github.com/index-io/sdk#readme",
   "dependencies": {
     "dotenv": "^17.2.0"
+  },
+  "devDependencies": {
+    "oxfmt": "0.74.0"
   }
 }
